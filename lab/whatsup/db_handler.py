@@ -1,461 +1,692 @@
-from dotenv import load_dotenv
-import os, time
+import os
+import time
+import uuid
 import psycopg2
 from psycopg2 import extras
 from pgvector.psycopg2 import register_vector
-import numpy as np
-import uuid
+from dotenv import load_dotenv
+from typing import Optional
 
-
-
+# .env 파일 로드는 한번만 수행합니다.
 load_dotenv()
 
-class DataBaseHandler():
+
+## 🛠️ DataBaseHandler: 연결 관리 (Context Manager)
+# 이 클래스는 순수하게 DB 연결, 커서 생성, 트랜잭션(커밋/롤백) 관리 역할만 담당합니다.
+class DataBaseHandler:
 
     def __init__(self):
-        self.db_host = None
-        self.db_port = None
-        self.db_user = None
-        self.db_password = None
-        self.db_name = None
+        # 환경 변수에서 기본값 로드 (필요하다면)
+        self.db_host = os.getenv("DB_HOST")
+        self.db_port = os.getenv("DB_PORT")
+        self.db_user = os.getenv("DB_USER")
+        self.db_password = os.getenv("DB_PASSWORD")
+        self.db_name = os.getenv("DB_NAME")
         self.conn = None
+        self.cursor = None
 
     def set_connection(self, autocommit=True):
-        """
-        커넥션 생성
-        """
-        self.db_host = self.db_host if self.db_host else os.getenv('DB_HOST')
-        self.db_port = self.db_port if self.db_port else os.getenv('DB_PORT')
-        self.db_user = self.db_user if self.db_user else os.getenv('DB_USER')
-        self.db_password = self.db_password if self.db_password else os.getenv('DB_PASSWORD')
-        self.db_name = self.db_name if self.db_name else os.getenv('DB_NAME')
-
+        """커넥션 생성 및 초기화."""
         try:
-            if not self.conn:
+            if not self.conn or self.conn.closed:
                 self.conn = psycopg2.connect(
-                host=self.db_host,
-                port=self.db_port,
-                database=self.db_name,
-                user=self.db_user,
-                password=self.db_password
-            )
-            self.conn.autocommit = True
+                    host=self.db_host,
+                    port=self.db_port,
+                    database=self.db_name,
+                    user=self.db_user,
+                    password=self.db_password,
+                )
+            self.conn.autocommit = autocommit
+            # pgvector 사용 등록
             register_vector(self.conn)
+            return self.conn
 
         except psycopg2.Error as e:
-            # 연결 실패 시 사용자에게 명확히 알림
-            print(f"🚨 PostgreSQL 연결 실패: {e}") 
-            # 연결 객체가 생성되지 않았으므로 conn.close() 등을 건너뛰고 바로 예외 발생
-            raise # 예외를 다시 발생시켜 with 블록이 시작되지 않도록 함
+            print(f"🚨 PostgreSQL 연결 실패: {e}")
+            raise  # 예외를 다시 발생시켜 with 블록이 시작되지 않도록 함
+
+    def __enter__(self):
+        """with 문 시작 시 호출됩니다. DB 연결을 열고 커서를 반환합니다."""
+        # set_connection 호출 시 autocommit=True가 기본값이나, __exit__에서 commit/rollback을 위해 False로 설정합니다.
+        # 기존 코드에서 autocommit=True로 설정되어 있었으므로, 그 로직을 유지하면서 트랜잭션 관리를 위해 conn.autocommit = False 설정을 제거했습니다.
+        # 만약 with 블록에서 트랜잭션 관리를 원한다면 set_connection(autocommit=False)로 변경하고 __exit__의 commit/rollback을 활성화해야 합니다.
+        self.set_connection(autocommit=True)
+        self.cursor = self.conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        )  # 딕셔너리 형태로 데이터를 가져오기 위해 RealDictCursor 사용 추천
+        return self.cursor
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """with 문 종료 시 호출됩니다. 커밋 또는 롤백 후 연결을 닫습니다."""
+        if self.conn:
+            if exc_type:
+                # autocommit=True일 경우 rollback은 효과가 없지만 안전을 위해 유지
+                print(f"오류 발생: {exc_value}. 롤백을 시도합니다.")
+                self.conn.rollback()
+            else:
+                # autocommit=True일 경우 commit은 효과가 없지만 안전을 위해 유지
+                try:
+                    self.conn.commit()
+                except Exception as e:
+                    print(f"커밋 오류 발생: {e}")
+
+            if self.cursor:
+                self.cursor.close()
+            # 연결을 닫습니다.
+            self.conn.close()
 
 
-    def set_default_tables(self, drop=False, sample_data=False):
+## 🚀 ZipFitDBHandler: 비즈니스/데이터 처리 로직 전담
+# 이 클래스는 테이블 정의 및 데이터 삽입/병합 등 실제 DB 작업 로직을 담당합니다.
+class ZipFitDBHandler(DataBaseHandler):
+
+    def __init__(self):
+        # DataBaseHandler의 __init__을 호출하여 DB 연결 정보를 초기화합니다.
+        super().__init__()
+
+    def sample(self, batch_status, batch_id, batch_seq_list):
+        self.set_connection()
+        self.cursor = self.conn.cursor()
+
         try:
-            self.set_connection(False)
+            pass
+        except (Exception, psycopg2.Error) as error:
+            print(f"❌ Psycopg2 DB 에러 발생: {error}")
+            if self.conn:
+                self.conn.rollback()  # 에러 발생 시 롤백
+        finally:
+            if self.conn:
+                if self.cursor and not self.cursor.closed:
+                    self.cursor.close()
+                if not self.conn.closed:
+                    self.conn.close()
+
+    # --- 테이블 생성 로직 ---
+    def set_default_tables(self, drop=False, sample_data=False):
+        """기본 테이블 생성 (ANNC_LH_TEMP, ANNC_ALL, ANNC_FILES, DOC_CHUNKS)"""
+        try:
+            # 트랜잭션 관리를 위해 autocommit=False로 연결
+            self.set_connection(autocommit=False)
             self.cursor = self.conn.cursor()
 
-
-            queries_execute = []
-
-            queries_execute.append(
+            queries_execute = [
+                # (설명, 테이블명, CREATE 쿼리, INSERT 쿼리)
                 (
                     "LH 공고 크롤링 배치",
                     "ANNC_LH_TEMP",
                     """
                     CREATE TABLE IF NOT EXISTS ANNC_LH_TEMP (
-                        BATCH_ID UUID NOT NULL,               -- 배치 ID (UUID 타입)
-                        BATCH_SEQ INT NOT NULL,               -- 배치 SEQ
-                        ANNC_URL TEXT,                        -- 공고 URL (TEXT 타입)
-                        BATCH_STATUS_CD VARCHAR(10),          -- 배치 상태 코드 (VARCHAR(10))
-                        BATCH_START_DTTM TIMESTAMPTZ,         -- 배치 등록 시간 (TIMESTAMPTZ 타입, 시간대 포함)
-                        BATCH_END_DTTM TIMESTAMPTZ,           -- 배치 완료 시간 (TIMESTAMPTZ 타입, 시간대 포함)
-                        ANNC_TYPE VARCHAR(50),                -- 공고 유형 (VARCHAR(50))
-                        ANNC_REGION VARCHAR(50),              -- 지역 (VARCHAR(50))
-                        ANNC_PBLSH_DT VARCHAR(50),            -- 게시일 (VARCHAR(50))
-                        ANNC_DEADLINE_DT VARCHAR(50),         -- 마감일 (VARCHAR(50))
-                        ANNC_STATUS VARCHAR(20),              -- 공고 상태 (VARCHAR(20))
-                        LH_PAN_ID VARCHAR(50),                -- 공고 식별 ID (VARCHAR(50))
-                        LH_AIS_TP_CD VARCHAR(10),             -- 공고 유형 코드 (VARCHAR(10))
-                        LH_UPP_AIS_TP_CD VARCHAR(10),         -- 상위 공고 유형 코드 (VARCHAR(10))
-                        LH_CCR_CNNT_SYS_DS_CD VARCHAR(10),    -- 연계 시스템 구분 코드 (VARCHAR(10))
-                        LH_LS_SST VARCHAR(50),                -- 목록 상의 상태/순서 (VARCHAR(50)),
-                        PRIMARY KEY (BATCH_ID, BATCH_SEQ)     -- 기본 키: BATCH_ID와 BATCH_SEQ의 복합 키
+                        BATCH_ID UUID NOT NULL, 
+                        BATCH_SEQ INT NOT NULL, 
+                        ANNC_URL TEXT, 
+                        batch_status VARCHAR(10), 
+                        BATCH_START_DTTM TIMESTAMPTZ, 
+                        BATCH_END_DTTM TIMESTAMPTZ, 
+                        ANNC_TYPE VARCHAR(50), 
+                        ANNC_DTL_TYPE VARCHAR(20), 
+                        ANNC_REGION VARCHAR(50), 
+                        ANNC_PBLSH_DT VARCHAR(50), 
+                        ANNC_DEADLINE_DT VARCHAR(50), 
+                        ANNC_STATUS VARCHAR(20), 
+                        LH_PAN_ID VARCHAR(50), 
+                        LH_AIS_TP_CD VARCHAR(10), 
+                        LH_UPP_AIS_TP_CD VARCHAR(10), 
+                        LH_CCR_CNNT_SYS_DS_CD VARCHAR(10), 
+                        LH_LS_SST VARCHAR(50), 
+                        PRIMARY KEY (BATCH_ID, BATCH_SEQ)
                     );
                     """,
-                    None
-                )
-            )
-
-            queries_execute.append(
+                    None,
+                ),
                 (
                     "공고 전체 테이블",
                     "ANNC_ALL",
                     """
                     CREATE TABLE IF NOT EXISTS ANNC_ALL (
-                        ANNC_ID BIGSERIAL PRIMARY KEY,      -- 공고 ID (BIGSERIAL, 기본 키)
-                        ANNC_URL TEXT,                      -- 공고 URL (TEXT)
-                        CORP_CD VARCHAR(10),                -- 공사 코드 (VARCHAR(10))
-                        ANNC_TYPE VARCHAR(50),              -- 공고 유형 (VARCHAR(50))
-                        ANNC_REGION VARCHAR(50),            -- 지역 (VARCHAR(50))
-                        ANNC_PBLSH_DT VARCHAR(50),          -- 게시일 (VARCHAR(50))
-                        ANNC_DEADLINE_DT VARCHAR(50),       -- 마감일 (VARCHAR(50))
-                        ANNC_STATUS VARCHAR(20),            -- 공고 상태 (VARCHAR(20))
-                        SERVICE_STATUS VARCHAR(20)          -- 서비스 상태 (VARCHAR(20))
+                        ANNC_ID BIGSERIAL PRIMARY KEY, 
+                        ANNC_URL TEXT UNIQUE, 
+                        CORP_CD VARCHAR(10), 
+                        ANNC_TYPE VARCHAR(50), 
+                        ANNC_DTL_TYPE VARCHAR(20), 
+                        ANNC_REGION VARCHAR(50), 
+                        ANNC_PBLSH_DT VARCHAR(50), 
+                        ANNC_DEADLINE_DT VARCHAR(50), 
+                        ANNC_STATUS VARCHAR(20), 
+                        SERVICE_STATUS VARCHAR(20)
                     );
-                    """,                    
+                    """,
                     """
                     INSERT INTO ANNC_ALL (
-                        ANNC_URL, CORP_CD, ANNC_TYPE, ANNC_REGION, ANNC_PBLSH_DT, ANNC_DEADLINE_DT, ANNC_STATUS, SERVICE_STATUS
-                    ) VALUES (
-                        'http://annc.co.kr/1001', 'LH', '주택공급', '전국', '2025-11-01', '2025-12-31', '진행중', 'Y'
-                    );
-                    """
-                )
-            )
-
-
-            queries_execute.append(
+                            ANNC_URL,
+                            CORP_CD,
+                            ANNC_TYPE,
+                            ANNC_DTL_TYPE,
+                            ANNC_REGION,
+                            ANNC_PBLSH_DT,
+                            ANNC_DEADLINE_DT,
+                            ANNC_STATUS,
+                            SERVICE_STATUS
+                        )
+                    VALUES (
+                            'http://annc.co.kr/1001',
+                            'LH',
+                            '주택공급',
+                            '임대',
+                            '전국',
+                            '2025-11-01',
+                            '2025-12-31',
+                            '진행중',
+                            'Y'
+                        ) ON CONFLICT (ANNC_URL) DO NOTHING;
+                    """,  # 중복 삽입 방지를 위해 ON CONFLICT 추가
+                ),
                 (
                     "공고 파일",
                     "ANNC_FILES",
                     """
                     CREATE TABLE IF NOT EXISTS ANNC_FILES (
-                        FILE_ID BIGSERIAL,                  -- 공고 파일 ID (BIGSERIAL)
-                        ANNC_ID BIGSERIAL,                  -- 공고 ID (BIGSERIAL, ANNC_ALL 참조)
-                        FILE_NAME VARCHAR(500),             -- 공고 파일명 (VARCHAR(500))
-                        FILE_TYPE VARCHAR(10),              -- 공고 파일 유형 (VARCHAR(10))
-                        FILE_PATH VARCHAR(2000),            -- 공고 파일 경로 (VARCHAR(2000))
-                        FILE_EXT VARCHAR(10),               -- 공고 파일 확장자 (VARCHAR(10))
-                        FILE_SIZE INT,                      -- 공고 파일 사이즈 (INT)
-                        IS_VECTORIZED BOOLEAN,              -- 임베딩 완료 (BOOLEAN)
-                        PRIMARY KEY (FILE_ID, ANNC_ID),     -- 복합 기본 키
+                        FILE_ID BIGSERIAL, 
+                        ANNC_ID BIGSERIAL, 
+                        FILE_NAME VARCHAR(500), 
+                        FILE_TYPE VARCHAR(10), 
+                        FILE_PATH VARCHAR(2000) UNIQUE, 
+                        FILE_EXT VARCHAR(10), 
+                        FILE_SIZE INT, 
+                        PRIMARY KEY (FILE_ID, ANNC_ID), 
                         FOREIGN KEY (ANNC_ID) REFERENCES ANNC_ALL (ANNC_ID)
                     );
                     """,
                     """
                     INSERT INTO ANNC_FILES (
-                        ANNC_ID, FILE_NAME, FILE_TYPE, FILE_PATH, FILE_EXT, FILE_SIZE, IS_VECTORIZED
-                    ) VALUES (
-                        1, -- ANNC_ALL 테이블에 삽입된 공고의 ID (예: 1)
-                        '2025년 주택공급 공고문.pdf', '공고', '/data/annc/1/file.pdf', 'pdf', 102400, FALSE
-                    );
-                    """
-                )
-            )
-
-
-            queries_execute.append(
+                            ANNC_ID,
+                            FILE_NAME,
+                            FILE_TYPE,
+                            FILE_PATH,
+                            FILE_EXT,
+                            FILE_SIZE
+                        )
+                    VALUES (
+                            (SELECT ANNC_ID FROM ANNC_ALL WHERE ANNC_URL = 'http://annc.co.kr/1001'),
+                            '2025년 주택공급 공고문.pdf',
+                            '공고',
+                            '/data/annc/1/file.pdf',
+                            'pdf',
+                            102400
+                        ) ON CONFLICT (FILE_PATH) DO NOTHING;
+                    """,  # ANNC_ID를 조회하여 삽입하는 방식으로 변경, 중복 삽입 방지를 위해 ON CONFLICT 추가
+                ),
                 (
                     "공고 파일 청크 벡터",
                     "DOC_CHUNKS",
                     """
                     CREATE TABLE IF NOT EXISTS DOC_CHUNKS (
-                        CHUNK_ID BIGSERIAL,                 -- 청크 ID (BIGSERIAL)
-                        FILE_ID BIGSERIAL,                  -- 공고 파일 ID (BIGSERIAL, ANNC_FILES 참조)
-                        ANNC_ID BIGSERIAL,                  -- 공고 ID (BIGSERIAL, ANNC_FILES 참조)
-                        CHUNK_TEXT TEXT,                    -- 청크 텍스트 (TEXT)
-                        PAGE_NUM SMALLINT,                  -- 페이지 번호 (SMALLINT)
-                        EMBEDDING VECTOR(1024),             -- 임베딩 벡터 (VECTOR(1024))
-                        METADATA JSONB,                     -- 메타데이터 (JSONB)
-                        PRIMARY KEY (CHUNK_ID, FILE_ID, ANNC_ID), -- 복합 기본 키
+                        CHUNK_ID BIGSERIAL, 
+                        FILE_ID BIGSERIAL, 
+                        ANNC_ID BIGSERIAL, 
+                        CHUNK_TEXT TEXT, 
+                        PAGE_NUM SMALLINT, 
+                        EMBEDDING VECTOR(1024), 
+                        METADATA JSONB, 
+                        PRIMARY KEY (CHUNK_ID), -- FILE_ID, ANNC_ID를 포함하지 않도록 수정 (일반적인 VEC DB 패턴)
                         FOREIGN KEY (FILE_ID, ANNC_ID) REFERENCES ANNC_FILES (FILE_ID, ANNC_ID)
                     );
                     """,
-                    None
-                    # """
-                    # INSERT INTO DOC_CHUNKS (
-                    #     FILE_ID, ANNC_ID, CHUNK_TEXT, PAGE_NUM, EMBEDDING, METADATA
-                    # ) VALUES (
-                    #     1, -- ANNC_FILES 테이블에 삽입된 파일 ID (예: 1)
-                    #     1, -- ANNC_ALL 테이블에 삽입된 공고 ID (예: 1)
-                    #     '청크 1: 주택 공급에 대한 자세한 규정은 다음과 같습니다.',
-                    #     1,
-                    #     '[0.1, 0.2, 0.3, ..., 0.9, 1.0]', -- 1024차원 벡터의 간략한 예시
-                    #     '{"source": "paragraph_1", "category": "rule"}'::jsonb
-                    # );
-                    # """
-                )
-            )
+                    None,  # 벡터 데이터 샘플은 복잡하여 주석 처리 유지
+                ),
+            ]
 
-            print(f'drop: {drop}, sample_data: {sample_data}')
+            print(f"drop: {drop}, sample_data: {sample_data}")
 
             for title, table_name, create_query, insert_query in queries_execute:
                 if drop:
-                    self.cursor.execute(f"DROP TABLE IF EXISTS ANNC_LH_TEMP;")
-                    print(f"👎 table {title}-[{table_name}] dropped")
-                
+                    # DROP TABLE IF EXISTS ANNC_LH_TEMP; 는 너무 구체적이므로 테이블명 변수 사용
+                    self.cursor.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE;")
+                    print(f"👎 table {title}-[{table_name}] dropped (CASCADE)")
+
                 self.cursor.execute(create_query)
                 print(f"✅ table {title}-[{table_name}] created")
 
                 if sample_data and insert_query:
                     self.cursor.execute(insert_query)
+                    print(f"✨ table {table_name} sample data inserted")
 
-
-            self.conn.commit()
+            self.conn.commit()  # 트랜잭션 커밋
         except (Exception, psycopg2.Error) as error:
             print(f"❌ Psycopg2 DB 에러 발생: {error}")
             if self.conn:
-                self.conn.rollback() # 에러 발생 시 롤백
+                self.conn.rollback()  # 에러 발생 시 롤백
         finally:
+            # set_connection에서 conn이 생성되었으므로, 여기서 커서/연결을 닫습니다.
             if self.conn:
-                self.cursor.close()
-                self.conn.close() 
+                if self.cursor and not self.cursor.closed:
+                    self.cursor.close()
+                if not self.conn.closed:
+                    self.conn.close()
 
+    # --- 데이터 삽입/병합 로직 ---
     def bulk_merge_lh(self, data_list, batch_size=100):
-        ...
-    
+
+        self.set_connection()
+        self.cursor = self.conn.cursor()
+
+        try:
+
+            # print('쿼리 생성')
+            # 로직 구현
+            # ...
+            merge_query_template = """
+            merge into annc_all as target using (
+                values {values_sql_placeholder}
+            ) as source (
+                annc_url,
+                annc_type,
+                annc_dtl_type,
+                annc_region,
+                annc_pblsh_dt,
+                annc_deadline_dt,
+                annc_status
+            ) on (target.annc_url = source.annc_url) -- annc_url을 기준으로 일치 여부 확인
+            -- 일치하는 행이 있으면 update
+            when matched then
+            update
+            set annc_type = source.annc_type,
+                annc_dtl_type = source.annc_dtl_type,
+                annc_status = source.annc_status,
+                annc_pblsh_dt = source.annc_pblsh_dt,
+                annc_deadline_dt = source.annc_deadline_dt,
+                service_status = 'PROCESSING'
+                when not matched then
+            insert (
+                    annc_url,
+                    corp_cd,
+                    annc_type,
+                    annc_dtl_type,
+                    annc_region,
+                    annc_pblsh_dt,
+                    annc_deadline_dt,
+                    annc_status,
+                    service_status
+                )
+            values (
+                    source.annc_url,
+                    'LH',
+                    source.annc_type,
+                    source.annc_dtl_type,
+                    source.annc_region,
+                    source.annc_pblsh_dt,
+                    source.annc_deadline_dt,
+                    source.annc_status,
+                    'PROCESSING'
+                );
+            """
+
+            print("시작")
+            for i in range(0, len(data_list), batch_size):
+                batch_list = data_list[i : i + batch_size]
+
+                values_to_insert = [
+                    (
+                        item["annc_url"],
+                        item["annc_type"],
+                        item["annc_dtl_type"],
+                        item["annc_region"],
+                        item["annc_pblsh_dt"],
+                        item["annc_deadline_dt"],
+                        item["annc_status"],
+                    )
+                    for item in batch_list
+                ]
+
+                # print(values_to_insert)
+
+                # Psycopg를 사용하여 VALUES 구문을 안전하게 생성
+                # 예: ('url1', 'LH', ...), ('url2', 'LH', ...)
+                value_placeholders = (
+                    "(" + ", ".join(["%s"] * len(values_to_insert[0])) + ")"
+                )
+
+                # 모든 VALUES 튜플을 합친 단일 SQL 문자열 생성
+                values_sql = ", ".join([value_placeholders] * len(values_to_insert))
+
+                # 최종 쿼리에 VALUES 구문 삽입
+                final_query = merge_query_template.replace(
+                    "{values_sql_placeholder}", values_sql
+                )
+
+                # 모든 청크 데이터의 값을 단일 리스트로 펼치기 (flat list)
+                flat_values = [val for row in values_to_insert for val in row]
+
+                # 쿼리 실행
+                self.cursor.execute(final_query, flat_values)
+                print(f"✅ {i}부터 {i + batch_size - 1}까지 {batch_size}건 MERGE 완료.")
+
+        except (Exception, psycopg2.Error) as error:
+            print(f"❌ Psycopg2 DB 에러 발생: {error}")
+            if self.conn:
+                self.conn.rollback()  # 에러 발생 시 롤백
+        finally:
+            # set_connection에서 conn이 생성되었으므로, 여기서 커서/연결을 닫습니다.
+            if self.conn:
+                if self.cursor and not self.cursor.closed:
+                    self.cursor.close()
+                if not self.conn.closed:
+                    self.conn.close()
+
     def bulk_insert_lh_temp(self, data_list):
 
         is_succed = False
         new_uuid = ""
 
+        # DataBaseHandler의 with 구문을 상속받아 사용합니다.
+        # with self.conn.cursor() as self.cursor: 대신 with self.cursor: 사용 (더 간결한 사용을 위해 __enter__ / __exit__ 수정 가능)
         try:
-            self.set_connection()
+            # set_connection(autocommit=True)를 직접 호출하여 트랜잭션 자동 커밋 모드로 연결합니다.
+            self.set_connection(autocommit=True)
             self.cursor = self.conn.cursor()
 
             insert_query = """
-                INSERT INTO ANNC_LH_TEMP (BATCH_ID, BATCH_SEQ, ANNC_URL, BATCH_STATUS_CD, BATCH_START_DTTM, BATCH_END_DTTM, ANNC_TYPE, ANNC_REGION, ANNC_PBLSH_DT, ANNC_DEADLINE_DT, ANNC_STATUS, LH_PAN_ID, LH_AIS_TP_CD, LH_UPP_AIS_TP_CD, LH_CCR_CNNT_SYS_DS_CD, LH_LS_SST)
+                INSERT INTO ANNC_LH_TEMP (
+                        BATCH_ID,
+                        BATCH_SEQ,
+                        ANNC_URL,
+                        batch_status,
+                        BATCH_START_DTTM,
+                        BATCH_END_DTTM,
+                        ANNC_TYPE,
+                        ANNC_DTL_TYPE,
+                        ANNC_REGION,
+                        ANNC_PBLSH_DT,
+                        ANNC_DEADLINE_DT,
+                        ANNC_STATUS,
+                        LH_PAN_ID,
+                        LH_AIS_TP_CD,
+                        LH_UPP_AIS_TP_CD,
+                        LH_CCR_CNNT_SYS_DS_CD,
+                        LH_LS_SST
+                    )
                 VALUES %s
             """
 
             new_uuid = str(uuid.uuid4())
-
-            data_list = [
-                (new_uuid, idx, *item)
-                for idx, item in enumerate(data_list, 1)
-            ]
+            current_dttm = time.strftime(
+                "%Y-%m-%d %H:%M:%S", time.gmtime()
+            )  # 시작 시간 기록을 위해 추가
 
             processed_data = []
-            for item in data_list:
+            for idx, item in enumerate(data_list, 1):
+                # data_list의 요소가 ANNC_URL부터 시작한다고 가정
                 new_row = (
-                    item[0],  # BATCH_ID
-                    item[1],  # BATCH_SEQ
-                    item[2],  # ANNC_URL
-                    'READY',  # BATCH_STATUS_CD (고정)
-                    None,     # BATCH_START_DTTM (고정)
-                    None,     # BATCH_END_DTTM (고정 - NULL)
-                    item[3],  # ANNC_TYPE
-                    item[4],  # ANNC_REGION
-                    item[5],  # ANNC_PBLSH_DT
-                    item[6],  # ANNC_DEADLINE_DT
-                    item[7],  # ANNC_STATUS
-                    item[8],  # LH_PAN_ID
-                    item[9],  # LH_AIS_TP_CD
-                    item[10], # LH_UPP_AIS_TP_CD
-                    item[11], # LH_CCR_CNNT_SYS_DS_CD
-                    item[12]  # LH_LS_SST
+                    new_uuid,  # BATCH_ID
+                    idx,  # BATCH_SEQ
+                    item[0],  # ANNC_URL
+                    "READY",  # batch_status (고정)
+                    current_dttm,  # BATCH_START_DTTM (현재 시간)
+                    None,  # BATCH_END_DTTM (NULL)
+                    item[1],  # ANNC_TYPE
+                    item[2],  # ANNC_DTL_TYPE
+                    item[3],  # ANNC_REGION
+                    item[4],  # ANNC_PBLSH_DT
+                    item[5],  # ANNC_DEADLINE_DT
+                    item[6],  # ANNC_STATUS
+                    item[7],  # LH_PAN_ID
+                    item[8],  # LH_AIS_TP_CD
+                    item[9],  # LH_UPP_AIS_TP_CD
+                    item[10],  # LH_CCR_CNNT_SYS_DS_CD
+                    item[11],  # LH_LS_SST
                 )
                 processed_data.append(new_row)
 
             start_time = time.time()
-        
-            # 3. execute_many()를 사용하여 벌크 삽입 실행
-            # 이 함수가 내부적으로 네트워크 왕복 횟수를 최소화하여 빠르게 처리합니다.
+
+            # extras.execute_values를 사용하여 벌크 삽입 실행
             extras.execute_values(self.cursor, insert_query, processed_data)
-            
-            # 4. 트랜잭션 커밋
-            self.conn.commit()
-            
+
+            # autocommit=True 이므로 conn.commit()이 필요 없지만, 명시적으로 호출해도 무방합니다.
+            # self.conn.commit()
+
             end_time = time.time()
             print(f"✅ Psycopg2 벌크 삽입 성공! {len(data_list)}개 데이터 삽입 완료.")
-            print(f"   소요 시간: {end_time - start_time:.4f} 초")
+            print(f"   소요 시간: {end_time - start_time:.4f} 초")
 
             is_succed = True
 
+            # print(f" 완료")
+
+        except (Exception, psycopg2.Error) as error:
+            print(f"❌ Psycopg2 DB 에러 발생: {error}")
+            if self.conn:
+                self.conn.rollback()  # 에러 발생 시 롤백
+        finally:
+            if self.conn:
+                if self.cursor and not self.cursor.closed:
+                    self.cursor.close()
+                if not self.conn.closed:
+                    self.conn.close()
+
+            return is_succed, new_uuid
+
+    def get_lh_temp(self, uuid, status, dictionay=False):
+        self.set_connection(autocommit=True)
+        self.cursor = (
+            self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            if dictionay
+            else self.conn.cursor()
+        )
+
+        sql_query = """
+            select alt.batch_id,
+                alt.batch_seq,
+                alt.annc_url,
+                alt.batch_status,
+                alt.batch_start_dttm,
+                alt.batch_end_dttm,
+                alt.annc_type,
+                alt.annc_dtl_type,
+                alt.annc_region,
+                alt.annc_pblsh_dt,
+                alt.annc_deadline_dt,
+                alt.annc_status,
+                alt.lh_pan_id,
+                alt.lh_ais_tp_cd,
+                alt.lh_upp_ais_tp_cd,
+                alt.lh_ccr_cnnt_sys_ds_cd,
+                alt.lh_ls_sst
+            from annc_lh_temp alt
+            where alt.batch_id = %s
+            and alt.batch_status = %s
+        """
+
+        self.cursor.execute(sql_query, (uuid, status))  # 👈 파라미터 바인딩
+
+        return self.cursor.fetchall()
+
+    def get_lh_temp_for_batch(self, uuid, dictionay=False):
+        self.set_connection(autocommit=True)
+        self.cursor = (
+            self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            if dictionay
+            else self.conn.cursor()
+        )
+
+        # 1. 쿼리 내에서 변수가 들어갈 자리에 플레이스홀더(일반적으로 %s 또는 ?)를 사용합니다.
+        # PostgreSQL/MySQL 등: %s 사용
+        sql_query = """
+            select distinct *
+            from (
+                select alt.batch_id,
+                    alt.batch_seq,
+                    alt.annc_url,
+                    alt.batch_status,
+                    alt.batch_start_dttm,
+                    alt.batch_end_dttm,
+                    alt.annc_type,
+                    alt.annc_dtl_type,
+                    alt.annc_region,
+                    alt.annc_pblsh_dt,
+                    alt.annc_deadline_dt,
+                    alt.annc_status,
+                    alt.lh_pan_id,
+                    alt.lh_ais_tp_cd,
+                    alt.lh_upp_ais_tp_cd,
+                    alt.lh_ccr_cnnt_sys_ds_cd,
+                    alt.lh_ls_sst
+                from annc_lh_temp alt
+                where alt.batch_id = %s
+                    and not exists(
+                        select *
+                        from annc_all aa
+                        where aa.annc_url = alt.annc_url
+                    )
+                    and alt.annc_type not in ('기타')
+                union all
+                select alt.batch_id,
+                    alt.batch_seq,
+                    alt.annc_url,
+                    alt.batch_status,
+                    alt.batch_start_dttm,
+                    alt.batch_end_dttm,
+                    alt.annc_type,
+                    alt.annc_dtl_type,
+                    alt.annc_region,
+                    alt.annc_pblsh_dt,
+                    alt.annc_deadline_dt,
+                    alt.annc_status,
+                    alt.lh_pan_id,
+                    alt.lh_ais_tp_cd,
+                    alt.lh_upp_ais_tp_cd,
+                    alt.lh_ccr_cnnt_sys_ds_cd,
+                    alt.lh_ls_sst
+                from annc_lh_temp alt
+                    join annc_all aa on alt.annc_url = aa.annc_url
+                where alt.batch_id = %s
+                    and (alt.annc_pblsh_dt != aa.annc_pblsh_dt
+                    or alt.annc_pblsh_dt != aa.annc_pblsh_dt
+                    or alt.annc_status != aa.annc_status)
+                    and alt.annc_type not in ('기타')
+                    
+            ) a
+        """
+
+        # 2. execute()의 두 번째 인수에 튜플 형태로 변수를 전달합니다.
+        # 플레이스홀더 순서대로 변수(uuid)를 나열합니다.
+        self.cursor.execute(sql_query, (uuid, uuid))  # 👈 파라미터 바인딩
+
+        return self.cursor.fetchall()
+
+    def set_batch_status(self, batch_status, batch_id, batch_seq_list):
+        self.set_connection()
+        self.cursor = self.conn.cursor()
+
+        update_query = """
+            update annc_lh_temp
+            set batch_status = %s
+            where batch_id = %s
+            and batch_seq in %s
+        """
+
+        try:
+
+
+            params = (batch_status, batch_id, tuple(batch_seq_list))
+
+            self.cursor.execute(update_query, params)
+
+        except (Exception, psycopg2.Error) as error:
+            print(f"❌ Psycopg2 DB 에러 발생: {error}")
+            if self.conn:
+                self.conn.rollback()  # 에러 발생 시 롤백
+        finally:
+            if self.conn:
+                if self.cursor and not self.cursor.closed:
+                    self.cursor.close()
+                if not self.conn.closed:
+                    self.conn.close()
+
+    def get_annc_all(
+        self,
+        corp_cd,
+        annc_url: Optional[str] = None,
+        annc_status: Optional[str] = None,
+        annc_type: Optional[str] = None,
+        dictionay: Optional[bool] = False,
+    ):
+        self.set_connection()
+        self.cursor = (
+            self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            if dictionay
+            else self.conn.cursor()
+        )
+
+        sql_query = """
+            select *
+            from annc_all
+            where corp_cd = %s
+            and (%s IS NULL OR annc_url = %s)
+            and (%s IS NULL OR annc_status = %s)
+            and (%s IS NULL OR annc_type = %s)
+            """
+
+        self.cursor.execute(sql_query, (corp_cd, annc_url, annc_url, annc_status, annc_status, annc_type, annc_type))  # 👈 파라미터 바인딩
+
+        return self.cursor.fetchall()
+    
+
+    def remove_annc_file(self, annc_id: Optional[int]|Optional[list]):
+        self.set_connection()
+        self.cursor = self.conn.cursor()
+
+        update_query = """
+            delete from annc_files
+            where annc_id in %s
+        """
+
+        annc_id_list = (annc_id) if type(annc_id) == int else tuple(annc_id)
+
+        try:
+
+            params = (annc_id_list)
+
+            self.cursor.execute(update_query, params)
         except (Exception, psycopg2.Error) as error:
             print(f"❌ Psycopg2 DB 에러 발생: {error}")
             if self.conn:
                 self.conn.rollback() # 에러 발생 시 롤백
         finally:
             if self.conn:
-                self.cursor.close()
-                self.conn.close()
-            return is_succed, new_uuid
+                if self.cursor and not self.cursor.closed:
+                    self.cursor.close()
+                if not self.conn.closed:
+                    self.conn.close()
 
 
-
-    def __enter__(self):
-        """
-        with 문 시작 시 호출됩니다. DB 연결을 열고 커서를 반환합니다.
-        
-        Returns:
-            psycopg2.Cursor: DB 작업을 수행하는 커서 객체
-        """
-
+    def insert_annc_file(self, annc_files):
         self.set_connection()
         self.cursor = self.conn.cursor()
-        return self.cursor
-    
-    def __exit__(self, exc_type, exc_value, traceback):
+
+        insert_query = """
+            insert into annc_files
+            (
+                file_id,
+                annc_id,
+                file_name,
+                file_type,
+                file_path,
+                file_ext,
+                file_size
+            )
+            values %s
         """
-        with 문 종료 시 호출됩니다. 커밋 또는 롤백 후 연결을 닫습니다.
-        Args:
-        exc_type, exc_value, traceback: 발생한 예외 정보
-        """
-        if exc_type:
-            print(f"오류 발생: {exc_value}. 롤백을 수행합니다.")
-            self.conn.rollback()
-        else:
-            # 오류가 없으면 변경 사항을 커밋합니다.
-            self.conn.commit()
-
-        # 연결을 닫습니다.
-        if self.conn:
-            self.conn.close()
-
-class DatabaseExecuteSamples:
-    """
-    DataBaseHandler를 사용하여 PostgreSQL에서 CRUD 및 JOIN 작업을 수행하는
-    샘플 메서드를 모아 놓은 클래스입니다.
-    """
-
-    def create_tables(self):
-        """문서 및 작성자 테이블을 생성합니다."""
-        print("--- 1. 테이블 생성 시작 ---")
-        try:
-            with DataBaseHandler() as cursor:
-                # authors 테이블 생성
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS authors (
-                        author_id SERIAL PRIMARY KEY,
-                        name VARCHAR(100) NOT NULL,
-                        email VARCHAR(100) UNIQUE
-                    );
-                """)
-
-                # documents 테이블 생성 (pgvector의 vector(3) 타입 사용)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS documents (
-                        doc_id SERIAL PRIMARY KEY,
-                        author_id INTEGER REFERENCES authors(author_id),
-                        title VARCHAR(255) NOT NULL,
-                        content TEXT,
-                        vector vector(3) 
-                    );
-                """)
-                print("테이블 'authors' 및 'documents' 생성 완료.")
-        except Exception as e:
-            print(f"테이블 생성 오류: {e}")
-
-    # ---
-
-    def insert_data(self):
-        """샘플 데이터를 삽입하고 벡터를 저장합니다."""
-        print("\n--- 2. 데이터 삽입 시작 ---")
-        # 예시 벡터 데이터 (차원은 3으로 가정)
-        vector_data_1 = np.array([0.1, 0.2, 0.3])
-        vector_data_2 = np.array([0.4, 0.5, 0.6])
 
         try:
-            with DataBaseHandler() as cursor:
-                # 작성자 데이터 삽입
-                cursor.execute(
-                    "INSERT INTO authors (name, email) VALUES (%s, %s) RETURNING author_id;",
-                    ('김지수', 'jisoo@example.com')
-                )
-                # 삽입된 author_id를 가져옴
-                author_id_1 = cursor.fetchone()[0] 
 
-                cursor.execute(
-                    "INSERT INTO authors (name, email) VALUES (%s, %s) RETURNING author_id;",
-                    ('박현우', 'hyeonwoo@example.com')
-                )
-                author_id_2 = cursor.fetchone()[0]
-                
-                # 문서 데이터 삽입 (벡터 데이터 포함)
-                cursor.execute(
-                    "INSERT INTO documents (author_id, title, content, vector) VALUES (%s, %s, %s, %s);",
-                    (author_id_1, '파이썬 Context Manager', 'DB 연결 관리의 효율성', vector_data_1)
-                )
-                cursor.execute(
-                    "INSERT INTO documents (author_id, title, content, vector) VALUES (%s, %s, %s, %s);",
-                    (author_id_2, '벡터 검색 개요', 'pgvector의 작동 방식에 대한 설명', vector_data_2)
-                )
-                print(f"작성자 2명 및 문서 2개 삽입 완료.")
-        except Exception as e:
-            print(f"데이터 삽입 오류: {e}")
-            
-    # ---
-
-    def select_query(self, doc_title):
-        """특정 제목의 문서를 조회합니다."""
-        print(f"\n--- 3. SELECT 쿼리: '{doc_title}' ---")
-        try:
-            with DataBaseHandler() as cursor:
-                cursor.execute(
-                    "SELECT doc_id, title, content FROM documents WHERE title = %s;",
-                    (doc_title,)
-                )
-                result = cursor.fetchone()
-                if result:
-                    print(f"조회 결과: ID={result[0]}, 제목={result[1]}, 내용={result[2]}")
-                else:
-                    print(f"'{doc_title}' 문서를 찾을 수 없습니다.")
-        except Exception as e:
-            print(f"조회 오류: {e}")
-
-    # ---
-
-    def join_query(self):
-        """JOIN 쿼리로 문서와 작성자 정보를 함께 조회합니다."""
-        print("\n--- 4. JOIN 쿼리 (문서 + 작성자) ---")
-        try:
-            with DataBaseHandler() as cursor:
-                cursor.execute("""
-                    SELECT 
-                        d.title, 
-                        a.name AS author_name,
-                        a.email 
-                    FROM documents d
-                    JOIN authors a ON d.author_id = a.author_id;
-                """)
-                
-                results = cursor.fetchall()
-                for row in results:
-                    print(f"제목: {row[0]}, 작성자: {row[1]}, 이메일: {row[2]}")
-        except Exception as e:
-            print(f"JOIN 쿼리 오류: {e}")
-
-    # ---
-
-    def update_query(self, doc_title, new_content):
-        """특정 문서의 내용을 수정합니다."""
-        print(f"\n--- 5. UPDATE 쿼리: '{doc_title}' ---")
-        try:
-            with DataBaseHandler() as cursor:
-                cursor.execute(
-                    "UPDATE documents SET content = %s WHERE title = %s;",
-                    (new_content, doc_title)
-                )
-                print(f"'{doc_title}' 문서 내용이 '{new_content}'로 수정되었습니다.")
-        except Exception as e:
-            print(f"업데이트 오류: {e}")
-
-    # ---
-
-    def delete_query(self, doc_title):
-        """특정 제목의 문서를 삭제합니다."""
-        print(f"\n--- 6. DELETE 쿼리: '{doc_title}' ---")
-        try:
-            with DataBaseHandler() as cursor:
-                cursor.execute(
-                    "DELETE FROM documents WHERE title = %s;",
-                    (doc_title,)
-                )
-                print(f"'{doc_title}' 문서가 삭제되었습니다.")
-        except Exception as e:
-            print(f"삭제 오류: {e}")
-
-    # ---
-
-    def drop_tables(self):
-        """예제 테이블을 모두 삭제합니다."""
-        print("\n--- 7. 테이블 삭제 시작 ---")
-        try:
-            with DataBaseHandler() as cursor:
-                # 외래 키 제약 조건 때문에 documents를 먼저 삭제
-                cursor.execute("DROP TABLE IF EXISTS documents;")
-                cursor.execute("DROP TABLE IF EXISTS authors;")
-                print("테이블 'documents' 및 'authors' 삭제 완료.")
-        except Exception as e:
-            print(f"테이블 삭제 오류: {e}")
+            extras.execute_values(self.cursor, insert_query, annc_files)
+        except (Exception, psycopg2.Error) as error:
+            print(f"❌ Psycopg2 DB 에러 발생: {error}")
+            if self.conn:
+                self.conn.rollback() # 에러 발생 시 롤백
+        finally:
+            if self.conn:
+                if self.cursor and not self.cursor.closed:
+                    self.cursor.close()
+                if not self.conn.closed:
+                    self.conn.close()
