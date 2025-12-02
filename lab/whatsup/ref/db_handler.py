@@ -4,8 +4,8 @@ import uuid
 import psycopg2
 from psycopg2 import extras
 from pgvector.psycopg2 import register_vector
-from dotenv import load_dotenv
-from typing import Optional
+
+
 
 # .env 파일 로드는 한번만 수행합니다.
 load_dotenv()
@@ -24,6 +24,8 @@ class DataBaseHandler:
         self.db_name = os.getenv("DB_NAME")
         self.conn = None
         self.cursor = None
+
+    
 
     def set_connection(self, autocommit=True):
         """커넥션 생성 및 초기화."""
@@ -193,7 +195,7 @@ class ZipFitDBHandler(DataBaseHandler):
                         FILE_EXT VARCHAR(10), 
                         FILE_SIZE INT, 
                         PRIMARY KEY (FILE_ID, ANNC_ID), 
-                        FOREIGN KEY (ANNC_ID) REFERENCES ANNC_ALL (ANNC_ID)
+                        FOREIGN KEY (ANNC_ID) REFERENCES ANNC_ALL (ANNC_ID) ON DELETE CASCADE
                     );
                     """,
                     """
@@ -228,7 +230,7 @@ class ZipFitDBHandler(DataBaseHandler):
                         EMBEDDING VECTOR(1024), 
                         METADATA JSONB, 
                         PRIMARY KEY (CHUNK_ID), -- FILE_ID, ANNC_ID를 포함하지 않도록 수정 (일반적인 VEC DB 패턴)
-                        FOREIGN KEY (FILE_ID, ANNC_ID) REFERENCES ANNC_FILES (FILE_ID, ANNC_ID)
+                        FOREIGN KEY (FILE_ID, ANNC_ID) REFERENCES ANNC_FILES (FILE_ID, ANNC_ID) ON DELETE CASCADE
                     );
                     """,
                     None,  # 벡터 데이터 샘플은 복잡하여 주석 처리 유지
@@ -451,6 +453,7 @@ class ZipFitDBHandler(DataBaseHandler):
             is_succed = True
 
             # print(f" 완료")
+            
 
         except (Exception, psycopg2.Error) as error:
             print(f"❌ Psycopg2 DB 에러 발생: {error}")
@@ -610,7 +613,7 @@ class ZipFitDBHandler(DataBaseHandler):
         annc_type: Optional[str] = None,
         dictionay: Optional[bool] = False,
     ):
-        self.set_connection()
+        self.conn = self.set_connection()
         self.cursor = (
             self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             if dictionay
@@ -626,7 +629,7 @@ class ZipFitDBHandler(DataBaseHandler):
             and (%s IS NULL OR annc_type = %s)
             """
 
-        self.cursor.execute(sql_query, (corp_cd, annc_url, annc_url, annc_status, annc_status, annc_type, annc_type))  # 👈 파라미터 바인딩
+        self.cursor.execute(sql_query, (corp_cd, annc_url, annc_url, annc_status, annc_status, annc_type, annc_type)) 
 
         return self.cursor.fetchall()
     
@@ -690,3 +693,70 @@ class ZipFitDBHandler(DataBaseHandler):
                     self.cursor.close()
                 if not self.conn.closed:
                     self.conn.close()
+
+
+
+
+class ZipFitDBHandler2(DataBaseHandler):
+    def __init__(self):
+        # DataBaseHandler의 __init__을 호출하여 DB 연결 정보를 초기화합니다.
+        super().__init__()
+
+    def select_batch_announcements(
+        self,
+        batch_id: Optional[str] = None,
+        annc_type: Optional[str] = None,
+        annc_region: Optional[str] = None,
+        dictionary: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        ANNC_LH_TEMP 테이블에서 조건에 맞는 공고 정보를 조회합니다.
+        (SELECT 샘플과 유사한 동적 WHERE 조건 방식을 사용합니다.)
+        """
+        self.conn = self.set_connection()
+        # 딕셔너리 커서를 사용할지 일반 커서를 사용할지 결정
+        self.cursor = (
+            self.conn.cursor(cursor_factory=extras.DictCursor)
+            if dictionary
+            else self.conn.cursor()
+        )
+
+        sql_query = """
+            SELECT 
+                BATCH_ID, BATCH_SEQ, ANNC_URL, BATCH_STATUS, BATCH_START_DTTM, 
+                BATCH_END_DTTM, ANNC_TYPE, ANNC_DTL_TYPE, ANNC_REGION, 
+                ANNC_PBLSH_DT, ANNC_DEADLINE_DT, ANNC_STATUS, LH_PAN_ID, 
+                LH_AIS_TP_CD, LH_UPP_AIS_TP_CD, LH_CCR_CNNT_SYS_DS_CD, LH_LS_SST
+            FROM 
+                ANNC_LH_TEMP
+            WHERE 
+                (%s IS NULL OR BATCH_ID = %s)
+                AND (%s IS NULL OR ANNC_TYPE = %s)
+                AND (%s IS NULL OR ANNC_REGION = %s)
+            ORDER BY
+                BATCH_START_DTTM DESC, BATCH_SEQ ASC;
+        """
+        
+        # 쿼리 매개변수: None이 전달되면 해당 조건은 무시됩니다.
+        params = (
+            batch_id, batch_id,
+            annc_type, annc_type,
+            annc_region, annc_region,
+        )
+
+        try:
+            self.cursor.execute(sql_query, params)
+            results = self.cursor.fetchall()
+            
+            # DictCursor를 사용했다면 list[dict]로 변환
+            if dictionary:
+                return [dict(row) for row in results]
+            
+            return results
+
+        except (Exception, psycopg2.Error) as error:
+            print(f"Select 쿼리 실행 오류: {error}")
+            raise error
+        finally:
+            if self.cursor:
+                self.cursor.close()
