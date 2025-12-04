@@ -11,7 +11,7 @@ class ZipFitParser():
         self.multiple_spaces_regex = re.compile(r'\s{2,}')
         # 임베딩용: 마크다운 테이블 헤더 구분선 감지용 정규식 (여러 열 포함 패턴까지 허용)
         self.table_divider_regex_embedding = re.compile(r'^\s*\|\s*(:?-+\s*\|\s*)+:?\s*$')
-        print('v20251204.27.head+context')
+        print('v20251204.24')
 
     # --- 텍스트 정규화 헬퍼 함수 ---
 
@@ -102,7 +102,6 @@ class ZipFitParser():
         
         last_heading_content: str = ""
         last_heading_level: int = 0
-        current_section_id: int = 0
         
 
         def _save_text_element(text_list: List[str]):
@@ -116,8 +115,7 @@ class ZipFitParser():
             metadata = {
                 'page_number': page_number,
                 'heading_context': last_heading_content,
-                'heading_level': last_heading_level,
-                'section_id': current_section_id,
+                'heading_level': last_heading_level
             }
             
             elements.append({
@@ -149,8 +147,7 @@ class ZipFitParser():
                     'page_number': page_number,
                     'row_count': len(actual_data_rows),
                     'heading_context': last_heading_content,
-                    'heading_level': last_heading_level,
-                    'section_id': current_section_id,
+                    'heading_level': last_heading_level
                 }
                 
                 elements.append({
@@ -186,8 +183,6 @@ class ZipFitParser():
                     level = len(hashes)
                     
                     if heading_text:
-                        # 새 섹션 시작으로 간주
-                        current_section_id += 1
                         last_heading_content = heading_text
                         last_heading_level = level
                         
@@ -195,11 +190,7 @@ class ZipFitParser():
                             'content': heading_text,
                             'element_type': 'heading',
                             'page_number': page_number,
-                            'metadata': {
-                                'page_number': page_number,
-                                'level': level,
-                                'section_id': current_section_id,
-                            }
+                            'metadata': {'page_number': page_number, 'level': level}
                         })
 
             # 2. 테이블 처리 (파이프 시작 + 너무 짧지 않은 행만 테이블 후보로)
@@ -235,83 +226,58 @@ class ZipFitParser():
         )
         new_elements = []
 
-        # 섹션 단위로 heading + 본문을 묶기 위해, 먼저 section_id별로 요소를 그룹화
-        sections: Dict[int, List[Dict[str, Any]]] = {}
         for element in elements:
-            metadata = element.get('metadata') or {}
-            section_id = metadata.get('section_id', 0)
-            sections.setdefault(section_id, []).append(element)
+            element_type = element.get('element_type','')
+            page_number = element.get('page_number', 0)
+            metadata = element.get('metadata', None)
+            content = element.get('content', '')
 
-        # section_id 순서대로 순회하면서, 각 섹션 내에서 heading과 본문을 함께 청킹
-        for section_id in sorted(sections.keys()):
-            section_elements = sections[section_id]
+            # 요소 타입에 따라 테이블 여부를 가장 먼저 결정
+            is_table = (element_type == 'table')
 
-            # 섹션 대표 heading 텍스트 (있으면 사용)
-            section_heading_texts = [
-                el['content'] for el in section_elements
-                if el.get('element_type') == 'heading' and el.get('content')
-            ]
-            section_heading_text = section_heading_texts[0] if section_heading_texts else ""
+            # 1. 헤딩 요소 처리 (항상 일반 텍스트로 간주)
+            if element_type == 'heading':
+                normalized_content = self._normalize_for_embedding(content, is_table=False)
+                new_elements.append({
+                    'content': normalized_content,          
+                    'origin_content': normalized_content,
+                    'element_type': element_type,
+                    'page_number': page_number,
+                    'metadata': metadata,
+                })
+                continue
 
-            for element in section_elements:
-                element_type = element.get('element_type','')
-                page_number = element.get('page_number', 0)
-                metadata = element.get('metadata', None)
-                content = element.get('content', '')
-
-                # heading 요소 자체도 개별로 보존하되, 임베딩/LLM용 정규화 적용
-                if element_type == 'heading':
-                    normalized_content = self._normalize_for_embedding(content, is_table=False)
-                    normalized_origin_content = self._normalize_for_llm_context(content, is_table=False)
+            # 2. 내용 길이가 Chunk Size보다 큰 경우에만 분할 수행
+            if len(content) > splitter._chunk_size:
+                chunks = splitter.split_text(content)
+                
+                # A. LLM 컨텍스트용 원본 정규화 (테이블 포함)
+                normalized_origin_content = self._normalize_for_llm_context(content, is_table=is_table)
+                
+                for chunk_content in chunks:
+                    # B. 임베딩용 청크 정규화 
+                    normalized_chunk_content = self._normalize_for_embedding(chunk_content, is_table=is_table)
+                        
                     new_elements.append({
-                        'content': normalized_content,
-                        'origin_content': normalized_origin_content,
+                        'content': normalized_chunk_content,
+                        'origin_content': normalized_origin_content, 
                         'element_type': element_type,
                         'page_number': page_number,
                         'metadata': metadata,
                     })
-                    continue
-
-                # heading 이외 요소(text, table)는 섹션 heading과 결합하여 컨텍스트 구성
-                is_table = (element_type == 'table')
-
-                # 섹션 헤딩을 앞에 붙여 combined 텍스트 생성
-                if section_heading_text:
-                    combined_content = f"{section_heading_text}\n{content}"
-                else:
-                    combined_content = content
-
-                # 2. 내용 길이가 Chunk Size보다 큰 경우에만 분할 수행
-                if len(combined_content) > splitter._chunk_size:
-                    chunks = splitter.split_text(combined_content)
-
-                    # A. LLM 컨텍스트용 원본 정규화 (테이블 포함)
-                    normalized_origin_content = self._normalize_for_llm_context(combined_content, is_table=is_table)
-
-                    for chunk_content in chunks:
-                        # B. 임베딩용 청크 정규화 
-                        normalized_chunk_content = self._normalize_for_embedding(chunk_content, is_table=is_table)
-
-                        new_elements.append({
-                            'content': normalized_chunk_content,
-                            'origin_content': normalized_origin_content,
-                            'element_type': element_type,
-                            'page_number': page_number,
-                            'metadata': metadata,
-                        })
-
-                # 3. 분할되지 않는 요소 (Chunk Size보다 작거나 같음)
-                else:
-                    # 임베딩용과 LLM 제공용을 각각 용도에 맞게 정규화
-                    normalized_content = self._normalize_for_embedding(combined_content, is_table=is_table)
-                    normalized_origin_content = self._normalize_for_llm_context(combined_content, is_table=is_table)
-                    new_elements.append({
-                        'content': normalized_content,
-                        'origin_content': normalized_origin_content,
-                        'element_type': element_type,
-                        'page_number': page_number,
-                        'metadata': metadata,
-                    })
+            
+            # 3. 분할되지 않는 요소 (Chunk Size보다 작거나 같음)
+            else:
+                # 임베딩용과 LLM 제공용을 각각 용도에 맞게 정규화
+                normalized_content = self._normalize_for_embedding(content, is_table=is_table)
+                normalized_origin_content = self._normalize_for_llm_context(content, is_table=is_table)
+                new_elements.append({
+                    'content': normalized_content, 
+                    'origin_content': normalized_origin_content, 
+                    'element_type': element_type,
+                    'page_number': page_number,
+                    'metadata': metadata,
+                })
         
         return new_elements
 
