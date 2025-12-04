@@ -20,15 +20,15 @@ class AnncFileRepository(DataBaseHandler):
     # --------------------------------------------------------------------------
     ## INSERT (파일 데이터 삽입)
     # --------------------------------------------------------------------------
-    def bulk_insert_files(self, records: List[Dict[str, Any]]) -> int:
+    def bulk_insert_files(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         공고 파일 레코드를 대량 삽입합니다.
         :param records: 삽입할 파일 데이터 리스트 (annc_id 포함).
-        :return: 삽입된 행의 총 개수.
+        :return: 삽입된 파일의 file_id와 file_name 리스트.
         """
         insert_cols_str = ', '.join(self.COLUMNS)
         placeholders = ', '.join(['%s'] * len(self.COLUMNS))
-        query = f"INSERT INTO {self.TABLE_NAME} ({insert_cols_str}) VALUES ({placeholders})"
+        query = f"INSERT INTO {self.TABLE_NAME} ({insert_cols_str}) VALUES ({placeholders}) RETURNING file_id, file_name"
         
         data_to_insert = [
             tuple(rec.get(col, None) for col in self.COLUMNS)
@@ -38,8 +38,12 @@ class AnncFileRepository(DataBaseHandler):
         try:
             with self as db:
                 with db.conn.cursor() as cur:
-                    extras.execute_batch(cur, query, data_to_insert)
-                    return cur.rowcount
+                    results = []
+                    for data in data_to_insert:
+                        cur.execute(query, data)
+                        row = cur.fetchone()
+                        results.append({'file_id': row[0], 'file_name': row[1]})
+                    return results
         except Exception as e:
             print(f"ANNC_FILES 삽입 실패: {e}")
             raise

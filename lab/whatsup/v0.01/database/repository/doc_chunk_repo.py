@@ -10,7 +10,7 @@ class DocChunkRepository(DataBaseHandler):
     
     # CHUNK_ID (BIGSERIAL)을 제외한 모든 컬럼
     COLUMNS = [
-        "file_id", "annc_id", "chunk_text", "page_num", 
+        "file_id", "annc_id", "chunk_type", "chunk_text", "page_num", 
         "embedding", "metadata"
     ]
 

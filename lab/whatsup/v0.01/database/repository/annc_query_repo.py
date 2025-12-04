@@ -12,14 +12,14 @@ class AnncQrRepository(DataBaseHandler):
     TABLE_NAME_LH_TEMP = "annc_lh_temp"
     TABLE_NAME_ANNC_ALL = "annc_all"
     COLUMNS_LH_TEMP = [
-        'annc_id','annc_url',
+        'annc_id','annc_title','annc_url',
         'corp_cd',
         'annc_type','annc_dtl_type',
         'annc_pblsh_dt','annc_deadline_dt',
         'annc_status','service_status'
     ]
     COLUMNS_ANNC_ALL = [
-        "batch_id", "batch_seq", "annc_url", "batch_status", "batch_start_dttm", 
+        "batch_id", "batch_seq",'annc_title', "annc_url", "batch_status", "batch_start_dttm", 
         "annc_type", "annc_dtl_type", "annc_region",
         "annc_pblsh_dt", "annc_deadline_dt",
         "annc_status", "lh_pan_id", "lh_ais_tp_cd", 
@@ -29,11 +29,23 @@ class AnncQrRepository(DataBaseHandler):
     def __init__(self):
         super().__init__()
 
-    def get_announcements_merge_target(self, batch_id: str, annc_type_list: tuple|list=('임대','분양'), annc_status: Optional[str]=None):
+    def get_announcements_merge_target(self, batch_id: str, annc_type_list: tuple|list=('임대','분양'), annc_status: Optional[str|tuple|list]=None):
 
 
         try:
             with self as db:
+
+                if type(annc_status) == str:
+                    # print("annc_type = str")
+                    annc_status_list = (annc_status,)
+                elif type(annc_status) == list:
+                    # print("annc_type = List")
+                    annc_status_list = tuple(annc_status)
+                elif type(annc_status) == tuple:
+                    # print("annc_type = tuple")
+                    annc_status_list = annc_status
+                else:
+                    annc_status_list = None
 
                 return_columns = ','.join(['alt.' + col_name for col_name in self.COLUMNS_ANNC_ALL])
 
@@ -49,7 +61,7 @@ class AnncQrRepository(DataBaseHandler):
                                 where aa.annc_url = alt.annc_url
                             )
                             and alt.annc_type in %s
-                            and (%s is null or alt.annc_status = %s)
+                            and (%s is null or alt.annc_status in %s)
                         union all
                         select {return_columns}
                         from {self.TABLE_NAME_LH_TEMP} alt
@@ -59,14 +71,15 @@ class AnncQrRepository(DataBaseHandler):
                             or alt.annc_deadline_dt != aa.annc_deadline_dt
                             or alt.annc_status != aa.annc_status)
                             and alt.annc_type in %s
-                            and (%s is null or alt.annc_status = %s)
+                            and (%s is null or alt.annc_status in %s)
                             
                     ) a
+                    where batch_status not in ('COMPLETE') 
                     order by batch_seq asc;
                 """
                 params = (
-                    batch_id, tuple(annc_type_list), annc_status, annc_status,
-                    batch_id, tuple(annc_type_list), annc_status, annc_status
+                    batch_id, tuple(annc_type_list), annc_status_list, annc_status_list,
+                    batch_id, tuple(annc_type_list), annc_status_list, annc_status_list
                 )
 
 

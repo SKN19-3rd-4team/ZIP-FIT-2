@@ -19,7 +19,7 @@ class AnncLhRepository(DataBaseHandler):
     
     TABLE_NAME = "annc_lh_temp"
     COLUMNS = [
-        "batch_id", "batch_seq", "annc_url", "batch_status", "batch_start_dttm", 
+        "batch_id", "batch_seq", "annc_title", "annc_url", "batch_status", "batch_start_dttm", 
         "annc_type", "annc_dtl_type", "annc_region", "annc_pblsh_dt", 
         "annc_deadline_dt", "annc_status", "lh_pan_id", "lh_ais_tp_cd", 
         "lh_upp_ais_tp_cd", "lh_ccr_cnnt_sys_ds_cd", "lh_ls_sst"
@@ -55,6 +55,7 @@ class AnncLhRepository(DataBaseHandler):
             row = (
                 batch_id,
                 i+1,
+                rec.get("annc_title"),
                 rec.get("annc_url"),
                 rec.get("batch_status", "PENDING"),
                 current_time, 
@@ -101,13 +102,10 @@ class AnncLhRepository(DataBaseHandler):
             with self as db:
                 
                 if type(annc_type) == str:
-                    print("annc_type = str")
                     annc_type_list = (annc_type,)
                 elif type(annc_type) == list:
-                    print("annc_type = List")
                     annc_type_list = tuple(annc_type)
                 elif type(annc_type) == tuple:
-                    print("annc_type = tuple")
                     annc_type_list = annc_type
                 else:
                     annc_type_list = None
@@ -171,29 +169,38 @@ class AnncLhRepository(DataBaseHandler):
     def update_announcements(self, batch_status: str, batch_id: str, batch_seq: tuple|list|int):
         """
         batch_id, batch_seq_list로 batch_status를 갱신합니다.
+        batch_status가 'COMPLETE'인 경우 batch_end_dttm도 현재 시간으로 설정합니다.
         """
         try:
 
             if type(batch_seq) == int:
-                print("batch_seq = int")
                 batch_seq_list = (batch_seq,)
             elif type(batch_seq) == list:
-                print("batch_seq = List")
                 batch_seq_list = tuple(batch_seq)
             elif type(batch_seq) == tuple:
-                print("batch_seq = tuple")
                 batch_seq_list = batch_seq
             else:
                 batch_seq_list = None
 
             with self as db:
-                query = f"""
-                    update {self.TABLE_NAME}
-                    set batch_status = %s
-                    where batch_id = %s
-                    and batch_seq in %s
-                """
-                params = (batch_status, batch_id, batch_seq_list)
+                if batch_status == 'COMPLETE':
+                    current_time = datetime.datetime.now(datetime.timezone.utc)
+                    query = f"""
+                        update {self.TABLE_NAME}
+                        set batch_status = %s,
+                            batch_end_dttm = %s
+                        where batch_id = %s
+                        and batch_seq in %s
+                    """
+                    params = (batch_status, current_time, batch_id, batch_seq_list)
+                else:
+                    query = f"""
+                        update {self.TABLE_NAME}
+                        set batch_status = %s
+                        where batch_id = %s
+                        and batch_seq in %s
+                    """
+                    params = (batch_status, batch_id, batch_seq_list)
 
                 with db.conn.cursor() as cur:
                     cur.execute(query, params)

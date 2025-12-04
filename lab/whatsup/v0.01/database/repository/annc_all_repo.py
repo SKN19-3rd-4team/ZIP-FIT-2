@@ -13,6 +13,7 @@ class AnncAllRepository(DataBaseHandler):
     TABLE_NAME = 'annc_all'
     COLUMNS = [
         'annc_id',
+        'annc_title',
         'annc_url',
         'corp_cd',
         'annc_type',
@@ -24,7 +25,8 @@ class AnncAllRepository(DataBaseHandler):
         'service_status'
     ]
 
-    COLUMNS_FOR_MERGE = [        
+    COLUMNS_FOR_MERGE = [
+        'annc_title', 
         'annc_url',
         'corp_cd',
         'annc_type',
