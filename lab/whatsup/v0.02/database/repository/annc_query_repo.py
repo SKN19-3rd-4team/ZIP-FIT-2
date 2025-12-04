@@ -83,7 +83,6 @@ class AnncQrRepository(DataBaseHandler):
                             
                     ) alt
                     where batch_status not in ('COMPLETE')
-                    and annc_title in ('2025년 신혼·신생아 전세임대Ⅱ 입주자 수시모집 공고','2025년 신혼·신생아 전세임대 I 입주자 수시모집 공고','2025년 청년 전세임대 1순위 입주자 수시모집')
                     order by alt.batch_seq asc;
                 """
                 params = (
