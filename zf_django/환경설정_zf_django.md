@@ -98,6 +98,8 @@ pip install python-decouple
 # 
 pip install pgvector
 
+pip install djangorestframework
+
 ```
 
 ## `setting.py` 설정
