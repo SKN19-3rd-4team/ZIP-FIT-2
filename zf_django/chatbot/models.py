@@ -183,6 +183,14 @@ class Chat(models.Model):
         null=False, 
         verbose_name="세션 키"
     )
+    
+    # 사용자 고유 키 (기존 ChatHistory에서 이동)
+    # 현재 익명 사용자용이므로 CharField를 유지합니다.
+    user_key = models.CharField(
+        max_length=100,
+        null=False,
+        verbose_name='사용자 고유키'
+    )
 
     # 챗 제목 (사용자가 지정하거나, 첫 번째 메시지로 자동 생성)
     title = models.CharField(
@@ -191,13 +199,6 @@ class Chat(models.Model):
         verbose_name="채팅 제목"
     )
 
-    # 사용자 고유 키 (기존 ChatHistory에서 이동)
-    # 현재 익명 사용자용이므로 CharField를 유지합니다.
-    user_key = models.CharField(
-        max_length=100,
-        null=False,
-        verbose_name='사용자 고유키'
-    )
 
     # 생성 시간 (TIMESTAMPZ, 최초 생성 시점)
     created_at = models.DateTimeField(
@@ -221,7 +222,7 @@ class Chat(models.Model):
         return f'{self.title} ({self.session_key})'
 
 
-class ChatHistory(models.Model):
+class ChatMessage(models.Model):
     """
     익명 사용자와 챗봇 간의 대화 기록을 저장하는 모델입니다.
     새로운 Chat 모델을 참조하여 대화 세션을 추적합니다.
@@ -271,7 +272,7 @@ class ChatHistory(models.Model):
     
     class Meta:
         # ... verbose_name 등 유지
-        db_table = 'chat_history'
+        db_table = 'chat_message'
         
         # 복합 고유성 변경: 이제 chat_id와 sequence의 조합이 고유해야 합니다.
         unique_together = ('chat', 'sequence') 
