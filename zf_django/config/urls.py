@@ -19,5 +19,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('web/', include('web.urls')),
+    path('', include('web.urls')),      # web 앱의 URL
+    path('', include('chatbot.urls')),  # chatbot 앱의 URL (API 경로 포함)
 ]

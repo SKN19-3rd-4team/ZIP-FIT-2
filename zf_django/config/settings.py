@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'web',
     'chatbot',
     'django.contrib.postgres',
+    'rest_framework'
 ]
 
 MIDDLEWARE = [
