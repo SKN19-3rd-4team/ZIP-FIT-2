@@ -1,8 +1,7 @@
 from django.urls import path
-from .views import TestApiView
+from .views import annc_info  # 위에서 만든 함수 import
 
 urlpatterns = [
-    # path('test/', TestApiView.as_view(), name='test_api'),
-    # API 경로를 명확히 구분하기 위해 'api/' prefix를 사용하는 것을 권장합니다.
-    path('api/test/', TestApiView.as_view(), name='test_api'),
+    # .as_view() 없이 그냥 함수명만 적습니다.
+    path('api/annc/', annc, name='annc'),
 ]
