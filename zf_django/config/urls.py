@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
-
+# 각 app으로 라우팅 기능만 한다.
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('web.urls')),      # web 앱의 URL

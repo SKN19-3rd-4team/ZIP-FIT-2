@@ -122,7 +122,6 @@ class AnncFiles(models.Model):
         # Django는 단일 PK를 선호하므로, 고유성 제약만 추가합니다.
         unique_together = ('file_id', 'annc_id')
 
-
 class DocChunks(models.Model):
     """ 공고 파일 청크 벡터 테이블 (DOC_CHUNKS) """
 
@@ -168,11 +167,67 @@ class DocChunks(models.Model):
         unique_together = ('chunk_id', 'file_id', 'annc_id')
 
 
-class ChatHistory(models.Model):
+
+class Chat(models.Model):
+    """
+    단일 채팅 세션 (대화방) 정보를 저장하는 모델입니다.
+    """
+    # 기본 키 (BIGSERIAL)
+    id = models.BigAutoField(primary_key=True, verbose_name="채팅 ID")
+
+    # 세션 키: 각 채팅 세션을 식별하는 고유 키 (기존 ChatHistory에서 분리)
+    # 기본값으로 UUID를 사용하면 자동으로 고유한 세션 키가 생성됩니다.
+    session_key = models.UUIDField(
+        # default=uuid.uuid4,
+        unique=True,
+        null=False, 
+        verbose_name="세션 키"
+    )
+    
+    # 사용자 고유 키 (기존 ChatHistory에서 이동)
+    # 현재 익명 사용자용이므로 CharField를 유지합니다.
+    user_key = models.CharField(
+        max_length=100,
+        null=False,
+        verbose_name='사용자 고유키'
+    )
+
+    # 챗 제목 (사용자가 지정하거나, 첫 번째 메시지로 자동 생성)
+    title = models.CharField(
+        max_length=200, 
+        default="새로운 채팅", 
+        verbose_name="채팅 제목"
+    )
+
+
+    # 생성 시간 (TIMESTAMPZ, 최초 생성 시점)
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="생성일시"
+    )
+    
+    # 마지막 수정 시간 (최근 메시지 시간 추적)
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="최근 업데이트 일시"
+    )
+    
+    class Meta:
+        verbose_name = "채팅 세션"
+        verbose_name_plural = "채팅 세션 목록"
+        db_table = 'chat'
+        ordering = ['-updated_at'] # 최신 채팅이 위로 오도록 정렬
+
+    def __str__(self):
+        return f'{self.title} ({self.session_key})'
+
+
+class ChatMessage(models.Model):
     """
     익명 사용자와 챗봇 간의 대화 기록을 저장하는 모델입니다.
-    세션 키를 사용하여 익명 사용자의 대화 세션을 추적합니다.
+    새로운 Chat 모델을 참조하여 대화 세션을 추적합니다.
     """
+    
     # 1. 메시지 유형 선택지 정의
     MESSAGE_CHOICES = [
         ('system', 'System Message'),
@@ -183,27 +238,26 @@ class ChatHistory(models.Model):
     # 기본 키 (BIGSERIAL)
     id = models.BigAutoField(primary_key=True, verbose_name="기록 ID")
 
-    # 세션 ID (익명 사용자 식별자 - CharField로 설정)
-    session_key = models.UUIDField(
-        # max_length=40,
-        null=False,
-        verbose_name="세션 키"
+    # 1. 외래 키 (필수 수정): Chat 모델을 참조하여 1:N 관계 설정
+    #   * on_delete=models.CASCADE: Chat 세션이 삭제되면 모든 기록이 함께 삭제됨
+    chat = models.ForeignKey(
+        'Chat', 
+        on_delete=models.CASCADE, 
+        related_name='history', # Chat 객체에서 .history.all()로 기록 접근 가능
+        verbose_name="채팅 세션"
     )
     
     # 세션 내 메시지 순서 (Integer, 1부터 시작하여 메시지 순서 보장)
     sequence = models.IntegerField(
-        null=False,
+        null=False, 
         verbose_name="메시지 순서"
     )
-
-    # 메시지 내용 (TEXT)
-    message = models.TextField(
-        verbose_name="메시지 내용"
-    )
+    
+    # --- 아래 필드는 기존과 동일하게 유지 ---
+    message = models.TextField(verbose_name="메시지 내용")
 
     max_length = max(len(item[0]) for item in MESSAGE_CHOICES)
 
-    # 메시지 유형 (user 또는 bot)
     message_type = models.CharField(
         max_length=max_length,
         choices=MESSAGE_CHOICES,
@@ -211,21 +265,20 @@ class ChatHistory(models.Model):
         verbose_name="메시지 유형"
     )
 
-    # 생성 시간 (TIMESTAMPZ, 레코드 생성 시 자동 기록)
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name="생성일시"
     )
     
     class Meta:
-        verbose_name = "챗봇 대화 기록"
-        verbose_name_plural = "챗봇 대화 기록"
-        # 데이터베이스 테이블명 지정
-        db_table = 'chat_history'
-        # 세션 내에서 순서(sequence)가 고유해야 함 (복합 고유성)
-        unique_together = ('session_key', 'sequence')
-        # 세션 키와 순서대로 정렬 (대화 흐름)
-        ordering = ['session_key', 'sequence'] 
+        # ... verbose_name 등 유지
+        db_table = 'chat_message'
+        
+        # 복합 고유성 변경: 이제 chat_id와 sequence의 조합이 고유해야 합니다.
+        unique_together = ('chat', 'sequence') 
+        
+        # 정렬: chat과 순서대로 정렬 
+        ordering = ['chat', 'sequence']
 
     def __str__(self):
         return f'[{self.created_at.strftime("%Y-%m-%d %H:%M")}] [{self.message_type}] {self.message[:30]}...'
