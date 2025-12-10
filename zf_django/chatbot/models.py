@@ -255,6 +255,8 @@ class ChatMessage(models.Model):
     
     # --- 아래 필드는 기존과 동일하게 유지 ---
     message = models.TextField(verbose_name="메시지 내용")
+    # user message인 경우 생성된 최종 프롬프트만 기록
+    prompt = models.TextField(verbose_name="프롬프트 내용")
 
     max_length = max(len(item[0]) for item in MESSAGE_CHOICES)
 

@@ -1,7 +1,7 @@
 from django.urls import path
-from .views import chat_message, chat_histories, chat_history_detail, annc_list, annc_summary
+from .views import chat_histories, chat_history_detail, annc_list, annc_summary, TestApiView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from chatbot.views import TestApiView
+from chatbot.views_chat import chat_message
 
 
 urlpatterns = [
