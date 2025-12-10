@@ -1,7 +1,14 @@
 from django.urls import path
 from .views import chat_message, chat_histories, chat_history_detail, annc_list, annc_summary
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from chatbot.views import TestApiView
+
 
 urlpatterns = [
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/test/', TestApiView.as_view(), name='test_api'),
+
     # 채팅
     path('api/chat', chat_message, name='chat-message'),
     path('api/chathistories', chat_histories, name='chat-histories'),

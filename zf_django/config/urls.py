@@ -16,14 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from chatbot.views import TestApiView
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('web.urls')),      # web 앱의 URL
     path('', include('chatbot.urls')),  # chatbot 앱의 URL (API 경로 포함)
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/test/', TestApiView.as_view(), name='test_api'),
 ]
