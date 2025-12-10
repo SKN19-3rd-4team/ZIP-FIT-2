@@ -301,6 +301,10 @@ components:
           type: integer
           description: 메시지 ID
           example: 1
+        session_id:
+          type: string
+          description: 세션 ID
+          example: 8a7e0d3c-9b1f-4d2a-8c5e-6f4b3a2d1e0f
         sequence:
           type: integer
           description: 메시지 순서

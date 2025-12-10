@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import chat_histories, chat_history_detail, annc_list, annc_summary, TestApiView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from chatbot.views_chat import chat_message
+from chatbot.views_chat import chat_message # 추후 합칠때 없애야 함
 
 
 urlpatterns = [

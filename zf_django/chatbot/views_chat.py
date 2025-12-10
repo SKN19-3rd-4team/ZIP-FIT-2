@@ -37,6 +37,7 @@ def chat_message(request):
         "data": {
             "ai_response": {
                 "id": 101,
+                "session_id": "8a7e0d3c-9b1f-4d2a-8c5e-6f4b3a2d1e0f",
                 "sequence": 2,
                 "message_type": "bot",
                 "message": f"AI가 답변합니다: '{user_msg}'에 대한 정보입니다."

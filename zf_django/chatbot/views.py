@@ -16,36 +16,6 @@ from .serializers import (
 )
 
 # ---------------------------------------------------
-# 1. 채팅 메시지 등록 및 AI 응답 (POST /api/chat)
-# ---------------------------------------------------
-@extend_schema(
-    summary="사용자 - 신규 채팅 메시지 등록 및 AI 응답 받기",
-    operation_id="postChatMessage",
-    tags=["채팅"],
-    request=ChatRequestSerializer,
-    responses={200: ChatResponseSerializer}
-)
-@api_view(['POST'])
-def chat_message(request):
-    # 실제로는 여기서 AI 모델 호출 로직이 들어감
-    user_msg = request.data.get('user_message', '')
-    
-    # 더미 응답 생성
-    response_data = {
-        "message": "성공적으로 메시지를 등록하고 AI 응답을 받았습니다.",
-        "status": "success",
-        "data": {
-            "ai_response": {
-                "id": 101,
-                "sequence": 2,
-                "message_type": "bot",
-                "message": f"AI가 답변합니다: '{user_msg}'에 대한 정보입니다."
-            }
-        }
-    }
-    return Response(response_data)
-
-# ---------------------------------------------------
 # 2. 채팅 히스토리 목록 조회 (GET /api/chathistories)
 # ---------------------------------------------------
 @extend_schema(
