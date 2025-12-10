@@ -1,13 +1,13 @@
 from django.urls import path
-from .views import TestApiView
+from .views import chat_message, chat_histories, chat_history_detail, annc_list, annc_summary
 
 urlpatterns = [
-    # path('test/', TestApiView.as_view(), name='test_api'),
-    # API 경로를 명확히 구분하기 위해 'api/' prefix를 사용하는 것을 권장합니다.
-    path('api/test/', TestApiView.as_view(), name='test_api'),
-    # 공고 조회 - 공고 목록 화면
-    # 챗봇 대화 내역 조회 - 리스트
-    # 챗봇 대화 내역 조회 - 상세
-    
+    # 채팅
+    path('api/chat', chat_message, name='chat-message'),
+    path('api/chathistories', chat_histories, name='chat-histories'),
+    path('api/chathistories/<str:session_key>', chat_history_detail, name='chat-history-detail'),
 
+    # 공고
+    path('api/anncs', annc_list, name='annc-list'),
+    path('api/annc_summary', annc_summary, name='annc-summary'),
 ]

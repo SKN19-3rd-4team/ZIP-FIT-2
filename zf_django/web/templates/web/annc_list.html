@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>공고 목록</title>
+    <style>
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+      }
+      th {
+        background-color: #eee;
+      }
+      .btn {
+        padding: 10px;
+        background: green;
+        color: white;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Chatbot 데이터 연동 목록</h1>
+    <a href="/web/vector-test/" class="btn">🚀 벡터 검색 테스트</a>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>제목</th>
+          <th>지역</th>
+          <th>마감일</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for annc in annc_list %}
+        <tr>
+          <td>{{ annc.annc_id }}</td>
+          <td>
+            <a href="{{ annc.annc_url }}" target="_blank"
+              >{{ annc.annc_title }}</a
+            >
+          </td>
+          <td>{{ annc.annc_region }}</td>
+          <td>{{ annc.annc_deadline_dt }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4">데이터가 없습니다.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>
