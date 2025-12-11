@@ -95,7 +95,7 @@ def annc_list(request):
     current_page = int(request.GET.get('current_page', 1))
 
     # 2. 필터링
-    queryset = AnncAll.objects.all().order_by('-created_dttm')
+    queryset = AnncAll.objects.all().order_by('-created_at')
     if annc_title:
         queryset = queryset.filter(annc_title__icontains=annc_title)
     if annc_status:

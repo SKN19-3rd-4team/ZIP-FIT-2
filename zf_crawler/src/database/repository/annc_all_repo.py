@@ -15,6 +15,8 @@ class AnncAllRepository(DataBaseHandler):
         'annc_id',
         'annc_title',
         'annc_url',
+        'created_at',
+        'updated_at',
         'corp_cd',
         'annc_type',
         'annc_dtl_type',
@@ -28,6 +30,8 @@ class AnncAllRepository(DataBaseHandler):
     COLUMNS_FOR_MERGE = [
         'annc_title',
         'annc_url',
+        'created_at',
+        'updated_at',
         'corp_cd',
         'annc_type',
         'annc_dtl_type',
@@ -49,15 +53,15 @@ class AnncAllRepository(DataBaseHandler):
         ANNC_URL을 Unique Key로 사용하여 공고 데이터를 병합(UPSERT)하고,
         삽입 또는 갱신된 레코드의 ANNC_ID와 ANNC_URL을 반환합니다.
         """
-        # INSERT 에 사용할 컬럼: updated_dttm 제외
+        # INSERT 에 사용할 컬럼: updated_at 제외
         insert_cols = [col for col in self.COLUMNS_FOR_MERGE]
-        # insert_cols = [col for col in self.COLUMNS_FOR_MERGE if col != 'updated_dttm']
+        # insert_cols = [col for col in self.COLUMNS_FOR_MERGE if col != 'updated_at']
         insert_cols_str = ', '.join(insert_cols)
 
         # UPDATE 에 사용할 컬럼: annc_url 제외 (conflict key는 update 불가)
         update_cols = [
             col for col in self.COLUMNS_FOR_MERGE
-            if col not in ('annc_url',)
+            if col not in ('annc_url','created_at')
         ]
         update_set_clauses = ', '.join(
             f"{col} = EXCLUDED.{col}"
@@ -69,6 +73,8 @@ class AnncAllRepository(DataBaseHandler):
             tuple(rec.get(col, None) for col in insert_cols)
             for rec in records
         ]
+
+        print(data_to_insert)
 
         try:
             with self as db:

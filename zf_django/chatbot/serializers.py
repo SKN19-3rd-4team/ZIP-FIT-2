@@ -18,7 +18,7 @@ class AnnouncementItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnncAll
         fields = [
-            'annc_id', 'annc_title', 'annc_url', 'created_dttm', 'annc_status'
+            'annc_id', 'annc_title', 'annc_url', 'created_at', 'annc_status'
         ]
 
 class PageInfoSerializer(serializers.Serializer):
