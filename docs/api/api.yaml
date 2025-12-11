@@ -356,7 +356,7 @@ components:
           description: 공고 상세 URL
           format: url
           example: https://example.com/announcements/annc_001
-        created_dttm:
+        created_at:
           type: string
           description: 생성 일시 (UTC)
           format: date-time
