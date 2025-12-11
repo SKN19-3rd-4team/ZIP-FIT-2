@@ -398,6 +398,28 @@ components:
           type: string
           description: 메시지 내용
           example: 수원 신혼부부에게 맞는 공고 찾아줄 수 있어?
+        ref_hope_area:
+          type: string
+          description: 희망지역
+          example: 서울, 경기
+        ref_age:
+          type: integer
+          description: 연령, 만 x세
+          example: 34세
+        ref_marriged:
+          type: string
+          description: 결혼 여부 (Y/N)
+          example: Y
+        ref_children:
+          type: integer
+          description: 자녀 (없음:0, 1:1 ...)
+          example: 1
+        ref_income:
+          type: integer
+          description: 연봉(세전) xx 만원
+          example: 4500
+        
+
 
     # 채팅 응답 스키마
     ChatResponse:
