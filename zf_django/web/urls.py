@@ -1,10 +1,10 @@
+# web/urls.py
 from django.urls import path
-from web import views
-
-
-app_name = 'web'
+from . import views
 
 urlpatterns = [
-    # path('', views.index, name='index'), # views 함수의 별칭
-    path('', views.chat_interface, name='chat_interface'),
+    path('', views.home_view, name='home'),
+    path('web/', views.chat_view, name='chat'),
+    path('profile/', views.profile_view, name='profile'),
+    path('announcements/', views.announcements_view, name='announcements'),
 ]
