@@ -15,8 +15,6 @@ class AnncAllRepository(DataBaseHandler):
         'annc_id',
         'annc_title',
         'annc_url',
-        'created_dttm',
-        'updated_dttm',
         'corp_cd',
         'annc_type',
         'annc_dtl_type',
@@ -28,10 +26,8 @@ class AnncAllRepository(DataBaseHandler):
     ]
 
     COLUMNS_FOR_MERGE = [
-        'annc_title', 
+        'annc_title',
         'annc_url',
-        'created_dttm',
-        'updated_dttm',
         'corp_cd',
         'annc_type',
         'annc_dtl_type',
@@ -58,10 +54,10 @@ class AnncAllRepository(DataBaseHandler):
         # insert_cols = [col for col in self.COLUMNS_FOR_MERGE if col != 'updated_dttm']
         insert_cols_str = ', '.join(insert_cols)
 
-        # UPDATE 에 사용할 컬럼: created_dttm, annc_url 제외
+        # UPDATE 에 사용할 컬럼: annc_url 제외 (conflict key는 update 불가)
         update_cols = [
             col for col in self.COLUMNS_FOR_MERGE
-            if col not in ('created_dttm', 'annc_url')
+            if col not in ('annc_url',)
         ]
         update_set_clauses = ', '.join(
             f"{col} = EXCLUDED.{col}"

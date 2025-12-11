@@ -123,17 +123,37 @@ class Initializing(DataBaseHandler):
                 "DOC_CHUNKS",
                 """
                 CREATE TABLE IF NOT EXISTS DOC_CHUNKS (
-                    CHUNK_ID BIGSERIAL, 
-                    FILE_ID BIGSERIAL, 
-                    ANNC_ID BIGSERIAL, 
+                    CHUNK_ID BIGSERIAL,
+                    FILE_ID BIGSERIAL,
+                    ANNC_ID BIGSERIAL,
                     CHUNK_TYPE VARCHAR(20),
-                    CHUNK_TEXT TEXT, 
-                    PAGE_NUM SMALLINT, 
-                    EMBEDDING VECTOR(1536), 
-                    METADATA JSONB, 
+                    CHUNK_TEXT TEXT,
+                    PAGE_NUM SMALLINT,
+                    EMBEDDING VECTOR(1536),
+                    METADATA JSONB,
+                    FTS_VECTOR TSVECTOR,
                     PRIMARY KEY (CHUNK_ID), -- FILE_ID, ANNC_ID를 포함하지 않도록 수정 (일반적인 VEC DB 패턴)
                     FOREIGN KEY (FILE_ID, ANNC_ID) REFERENCES ANNC_FILES (FILE_ID, ANNC_ID) ON DELETE CASCADE
                 );
+
+                -- GIN 인덱스 생성 (전문검색용)
+                CREATE INDEX IF NOT EXISTS idx_doc_chunks_fts
+                ON DOC_CHUNKS USING GIN (FTS_VECTOR);
+
+                -- 트리거 함수 정의
+                CREATE OR REPLACE FUNCTION doc_chunks_fts_trigger() RETURNS trigger AS $$
+                BEGIN
+                    NEW.fts_vector := to_tsvector('simple', NEW.chunk_text);
+                    RETURN NEW;
+                END
+                $$ LANGUAGE plpgsql;
+
+                -- 트리거 재생성
+                DROP TRIGGER IF EXISTS doc_chunks_fts_update ON DOC_CHUNKS;
+
+                CREATE TRIGGER doc_chunks_fts_update
+                BEFORE INSERT OR UPDATE ON DOC_CHUNKS
+                FOR EACH ROW EXECUTE PROCEDURE doc_chunks_fts_trigger();
                 """,
                 None,  # 벡터 데이터 샘플은 복잡하여 주석 처리 유지
             ),

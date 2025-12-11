@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict
+from .table_preprocessor import normalize_cell_text, normalize_markdown_table
 
 
 @dataclass
@@ -60,11 +61,15 @@ def merge_header_rows(df: pd.DataFrame, num_header_rows: int) -> List[str]:
 
 
 def clean_text(text: str) -> str:
-    """NUL 문자 제거"""
+    """NUL 문자 제거 및 셀 텍스트 정규화"""
     if not text:
         return ""
+    # NUL 및 제어문자 제거
     text = text.replace('\x00', '')
-    return ''.join(c for c in text if c >= ' ' or c in '\t\n\r')
+    text = ''.join(c for c in text if c >= ' ' or c in '\t\n\r')
+    # 셀 텍스트 정규화 (한글 사이 공백/줄바꿈 제거 등)
+    text = normalize_cell_text(text)
+    return text
 
 
 def dataframe_to_markdown(df: pd.DataFrame) -> str:

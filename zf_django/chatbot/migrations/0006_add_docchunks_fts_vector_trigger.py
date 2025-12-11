@@ -11,8 +11,8 @@ class Migration(migrations.Migration):
         migrations.RunSQL(
             sql="""
                 -- 1) 컬럼이 없으면 생성 (모델에도 정의되어 있음)
-                --ALTER TABLE doc_chunks
-                --ADD COLUMN IF NOT EXISTS fts_vector tsvector;
+                ALTER TABLE doc_chunks
+                ADD COLUMN IF NOT EXISTS fts_vector tsvector;
 
                 -- 2) GIN 인덱스 생성
                 CREATE INDEX IF NOT EXISTS idx_doc_chunks_fts

@@ -9,7 +9,7 @@ import re
 from typing import List, Dict, Any, Optional
 from django.db.models import Q, F
 from django.db import connection
-from .models import AnncAll, DocChunks, AnncFiles, ChatHistory
+from .models import AnncAll, DocChunks, AnncFiles, Chat, ChatMessage
 
 
 # 한국어 조사 제거 패턴
@@ -236,33 +236,67 @@ class DocChunkService:
 
 
 class ChatHistoryService:
-    """채팅 기록 관련 서비스"""
+    """채팅 기록 관련 서비스 (Chat + ChatMessage 모델 사용)"""
+
+    @staticmethod
+    def get_or_create_chat(session_key: str, user_key: str = "anonymous") -> Chat:
+        """세션 키로 Chat 조회 또는 생성"""
+        import uuid
+
+        try:
+            # UUID로 변환 시도
+            session_uuid = uuid.UUID(session_key)
+        except ValueError:
+            # UUID 형식이 아니면 새로 생성
+            session_uuid = uuid.uuid4()
+
+        chat, created = Chat.objects.get_or_create(
+            session_key=session_uuid,
+            defaults={'user_key': user_key, 'title': '새로운 채팅'}
+        )
+        return chat
 
     @staticmethod
     def get_history_by_session(session_key: str, limit: int = 20) -> List[Dict[str, Any]]:
         """세션별 채팅 기록 조회"""
-        return list(ChatHistory.objects.filter(
-            session_key=session_key
+        import uuid
+
+        try:
+            session_uuid = uuid.UUID(session_key)
+        except ValueError:
+            return []
+
+        try:
+            chat = Chat.objects.get(session_key=session_uuid)
+        except Chat.DoesNotExist:
+            return []
+
+        return list(ChatMessage.objects.filter(
+            chat=chat
         ).order_by('sequence')[:limit].values(
-            'id', 'session_key', 'sequence', 'message', 'message_type', 'created_at'
+            'id', 'sequence', 'message', 'message_type', 'created_at'
         ))
 
     @staticmethod
     def add_message(
         session_key: str,
         message: str,
-        message_type: str
-    ) -> ChatHistory:
+        message_type: str,
+        user_key: str = "anonymous"
+    ) -> ChatMessage:
         """채팅 메시지 추가"""
+        # Chat 가져오거나 생성
+        chat = ChatHistoryService.get_or_create_chat(session_key, user_key)
+
         # 현재 세션의 마지막 sequence 조회
-        last_msg = ChatHistory.objects.filter(
-            session_key=session_key
+        last_msg = ChatMessage.objects.filter(
+            chat=chat
         ).order_by('-sequence').first()
 
         next_sequence = (last_msg.sequence + 1) if last_msg else 1
 
-        return ChatHistory.objects.create(
-            session_key=session_key,
+        return ChatMessage.objects.create(
+            chat=chat,
             sequence=next_sequence,
             message=message,
             message_type=message_type
@@ -271,8 +305,20 @@ class ChatHistoryService:
     @staticmethod
     def get_recent_messages(session_key: str, count: int = 10) -> List[Dict[str, str]]:
         """최근 메시지를 LangGraph 형식으로 반환"""
-        messages = ChatHistory.objects.filter(
-            session_key=session_key
+        import uuid
+
+        try:
+            session_uuid = uuid.UUID(session_key)
+        except ValueError:
+            return []
+
+        try:
+            chat = Chat.objects.get(session_key=session_uuid)
+        except Chat.DoesNotExist:
+            return []
+
+        messages = ChatMessage.objects.filter(
+            chat=chat
         ).order_by('-sequence')[:count]
 
         # 역순으로 반환 (오래된 것부터)
