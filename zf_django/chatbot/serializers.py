@@ -18,7 +18,7 @@ class AnnouncementItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnncAll
         fields = [
-            'annc_id', 'annc_title', 'annc_url', 'created_at', 'annc_status'
+            'annc_id', 'annc_title', 'annc_url', 'created_at', 'annc_status', 'annc_type', 'annc_dtl_type', 'annc_region', 'annc_pblsh_dt', 'annc_deadline_dt'
         ]
 
 class PageInfoSerializer(serializers.Serializer):
@@ -40,6 +40,7 @@ class AnncSummaryDataSerializer(serializers.Serializer):
     cnt_lease = serializers.IntegerField()
     cnt_sale = serializers.IntegerField()
     cnt_etc = serializers.IntegerField()
+    cnt_new_this_week = serializers.IntegerField()
 
 class AnncSummaryResponseSerializer(BaseResponseSerializer):
     data = AnncSummaryDataSerializer()
@@ -55,7 +56,7 @@ class ChatMessageSerializer(serializers.Serializer):
 
 class ChatRequestSerializer(serializers.Serializer):
     user_key = serializers.CharField()
-    session_key = serializers.CharField()
+    session_id = serializers.CharField()
     user_message = serializers.CharField()
 
 class ChatResponseDataSerializer(serializers.Serializer):
@@ -67,7 +68,7 @@ class ChatResponseSerializer(BaseResponseSerializer):
 # 채팅 히스토리 목록
 class ChatShortSerializer(serializers.Serializer):
     title = serializers.CharField()
-    session_key = serializers.CharField()
+    session_id = serializers.CharField()
 
 class ChatHistoriesResponseSerializer(BaseResponseSerializer):
     data = ChatShortSerializer(many=True)
@@ -75,7 +76,7 @@ class ChatHistoriesResponseSerializer(BaseResponseSerializer):
 # 채팅 히스토리 상세
 class ChatHistoryDetailDataSerializer(serializers.Serializer):
     title = serializers.CharField()
-    session_key = serializers.CharField()
+    session_id = serializers.CharField()
     user_key = serializers.CharField()
     chat_list = ChatMessageSerializer(many=True)
 

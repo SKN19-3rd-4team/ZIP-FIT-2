@@ -36,7 +36,7 @@ def chat_message(request):
     사용자 메시지를 받아 LangGraph 기반 챗봇으로 AI 응답을 생성합니다.
     """
     user_msg = request.data.get('user_message', '')
-    session_id = request.data.get('session_id')
+    session_id = request.data.get('session_id')  # session_id로 통일
     user_key = request.data.get('user_key', 'anonymous')
 
     if not user_msg:

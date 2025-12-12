@@ -6,7 +6,6 @@ from .config import (
     MIN_CHUNK_SIZE, OPTIMAL_CHUNK_SIZE, MAX_CHUNK_SIZE,
     CHUNK_OVERLAP, MAX_TABLE_SIZE, TABLE_CONTEXT_KEYWORDS
 )
-from .table_preprocessor import normalize_markdown_table, normalize_cell_text
 
 
 @dataclass
@@ -92,13 +91,11 @@ def _split_by_sentences(text: str, chunk_size: int) -> List[str]:
 
 
 def clean_table_text(text: str) -> str:
-    """테이블 텍스트 정리 (<br> 태그 제거, 불필요한 공백 정리, 셀 정규화)"""
+    """테이블 텍스트 정리 (<br> 태그 제거, 불필요한 공백 정리)"""
     # <br> 태그를 공백으로 변환
     text = re.sub(r'<br\s*/?>', ' ', text, flags=re.IGNORECASE)
     # 연속 공백 정리
     text = re.sub(r'  +', ' ', text)
-    # 마크다운 테이블 정규화 (한글 사이 공백/줄바꿈 제거)
-    text = normalize_markdown_table(text)
     return text
 
 

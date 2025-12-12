@@ -292,6 +292,10 @@ components:
                   type: integer
                   description: 기타 공고 수
                   example: 4
+                cnt_new_this_week:
+                  type: integer
+                  description: 이번 주 신규 공고 수
+                  example: 12
 
     # 개별 채팅 메시지 스키마
     ChatMessage:
@@ -356,7 +360,7 @@ components:
           description: 공고 상세 URL
           format: url
           example: https://example.com/announcements/annc_001
-        created_at:
+        created_dttm:
           type: string
           description: 생성 일시 (UTC)
           format: date-time
@@ -398,28 +402,6 @@ components:
           type: string
           description: 메시지 내용
           example: 수원 신혼부부에게 맞는 공고 찾아줄 수 있어?
-        ref_hope_area:
-          type: string
-          description: 희망지역
-          example: 서울, 경기
-        ref_age:
-          type: integer
-          description: 연령, 만 x세
-          example: 34세
-        ref_marriged:
-          type: string
-          description: 결혼 여부 (Y/N)
-          example: Y
-        ref_children:
-          type: integer
-          description: 자녀 (없음:0, 1:1 ...)
-          example: 1
-        ref_income:
-          type: integer
-          description: 연봉(세전) xx 만원
-          example: 4500
-        
-
 
     # 채팅 응답 스키마
     ChatResponse:

@@ -1,0 +1,89 @@
+1. 현재 zipfit_django 의 규격과 구조가 우리 프로젝트의 방향성이다.
+2. figma14 폴더 아래 내가 만든 front-end 를 zipfit_django 의 규격과 구조에 맞춰야한다.
+2.1. 여기서 나는 landing.html, user_info.html, main.html, chat.html, list.html 으로 총 5개의 페이지 형식을 갖는다.
+이는 현재 zipfit_django 에서는 4page, home, announcements, chat, profile 로 구성되어있지만, 나는 5개의 page의 구성으로 만들어야한다.
+2.2 내가 만든 figma14에가 가지고 있는 기술적인 성격 = 반응형 웹, 레이아웃 디자인, 스타일, 등 모든 것을 동일하게 만들어야한다. 달라지면 안된다.
+3. 내가 만든 5개의 페이지에서는 각각 실제 데이터(PostgreSQL - Django 로 부터 API로 호출해서 데이터를 가져와야함, 현재는 이 구성은 타 팀원이 진행 중이기 때문에 나는 아래와 같이 가정한다.
+- 참고로 우리는 api로 호출해서 결과를 가져오기 때문에 django 에서 models 는 쓰지 않는 것으로 알고 있다.
+3.1. 각 page body 마지막에 <script> 로 api 호출해서 결과를 받아오는 코드를 활용하라고 지시받았다.
+docs 내용이 도움이 될 것 같다. 이를 참조하자.
+해당 docs\api\api.yaml 를 Swagger Viewer 로 보면 back-end 에서 어떻게 불러오는 지 알 수 있다.
+3.2. zf_django\web\templates\chat_interface.html 내용을 확인하면, 팀원이 어떻게 우리가 API를 호출할지 가이드를 잡아놓았기 때문에 이를 참조해야한다.
+3.3. 현재는 mock 데이터 이지만 실제로 우리가 API에서 호출 받아서 값 json 으로 받았다고 할 때, 알맞는 코드로 구성되어야한다. -> 만약 호출해서 받은 값이 저장되어야한다면 임이로 저장된 값을 불러올 수 있게 코드를 짜주면 좋겠다.
+4. user-info 에 대한 사용자 정보에 해당하는 것은 세션에서만 저장되는 형식으로 진행하면 될 것 같다.
+팀원이 진행했던 것 처럼 zipfit_django 방식을 따라도 되고, 현재 내가 구성한 figma14에서도 기술적으로 동일하게 sessionStorage 로 되어있는 것으로 알고 있다.
+4.1. 현재 어떤 방식으로 figma14에서 user_info '사용자 ID' -> 자동 생성 -> 다른 세션에서도 랜덤하게 계속 바뀜
+예) 매콤한 숫사슴
+-> 이 부분도 구현을 동일하게 가져가야한다.
+5. 각 페이지에서 하드 코딩된 데이터 정보를 호출에 의해서 실제 데이터로 받아서 render를 해줘야한다는 점을 잊지 말자.
+아래는 내가 생각한 실제 데이터와 연동되는 데이터 목록이다. 단, 같이 확인할 필요가 있음.
+5.1. landing : 연동되는 데이터 없음.
+5.2. user_info : 연동되는 데이터 없음.
+5.3. main.html : div-stat-number 에 해당하는 숫자 데이터 / div-chat-history 목록 데이터 = 실제 채팅 내역에 맞춰서 LLM 이 짧게 요약한 내용에 대한 데이터
+5.4. chat.html : 추천 div.suggetions-grid 현재 하드 코딩된 Mock 데이터이지만, 이는 어떻게 해야할 지 논의가 필요하다. -> 현재 '카드'로 제시되는 것은 문제되지 않을 것 같음, 단 추천 질문에 대해서 클릭하고 나오는 답변에 대해서는 현재 Mock 데이터로 되어있는데 이 또한 api 로 호출해서 json 형식으로 돌려받은 값을 보여줘야한다.
+-> 현재는 실제로 호출해서 가져온 json 정보?가 없지만, 실제로 호출해서 받아왔다고 가정하고 받아온 데이터를 어딘가에 저장을 한 번 하고 그걸 보여주는 형태가 되지 않을까? 그럼 저장된 'response_####.json' 이라고 한다면, 이 데이터를 나는 임의로 우선 가공하고 나중에 실제로 호출된 결과 값을 response_###.json에 바꿔야할 것 같다.
+-> 이는 내 생각이지만, 전문가 입장으로 논의해서 어떤 과정으로 해결해야하는지 알려주길 바란다.
+5.5. api로 부터 호출해서 받은 값 = json(형태일지 정확하게는 모르지만, 맞는 것 같음) 일 경우, 이를 답변의 스타일에 맞춰서 render 해서 사용자에게 보여줘야한다.
+내가 임의로 만든 채팅 답변의 규격이 좋아보였다. 우선 참고해야할 것 같다.
+아래는 각 채팅에 대한 답변이 실제로 어떻게 나왔는지, 개발자 모드에서 copy element를 한 파일이다.
+Q, A : 01_고양시 청년 주택 공고를 알려줘.txt -> lab\ohj\chat_form\01_고양시 청년 주택 공고를 알려줘.txt
+Q, A : 02_궁동 그루안 전세 중도 해지 패널티는.txt -> lab\ohj\chat_form\ 하위 경로
+Q, A : 03_신혼부부 특별공급 자격 조건은.txt -> lab\ohj\chat_form\ 하위 경로
+Q, A : 04_청년 전용 대출 상품을 추천해줘.txt -> lab\ohj\chat_form\ 하위 경로
+이외에도 여러 질문이 올 수 있다.
+- 예를 들면 기타 질문에 대한 답변 형식. -> 공손하게 표현해서 답변을 제공해야함. (물론 이건 LLM 에서 프롬프팅 등을 통해서 받을 것 같지만 여기서는 형식을 정해야할 듯)
+- 공고 비교를 원하는 답변 형식. -> 마찬가지로 형식을 표로 제공해서 깔끔하게 보여줘야할 듯. (비교는 채팅형식에서 쉽지 않기 때문에 2개의 공고에 대해서 비교해주는 테이블 형태로 깔끔하게 보여지면 좋겠다.)
+- 공고 요약에 대해서 문의시 답변 형식
+5.6. list.html : 각 공고에 맞는 '기관 태그', '유형 태그', '모집 기간', 'D-##', '모집 상태', '공고 명', 에 대한 실제 데이터에 대한 값들.
+공고에 맞는 각 기관 사이트 링크 (아래 3개)
+https://apply.lh.or.kr/lhapply/main.do
+https://www.gh.or.kr/
+https://www.i-sh.co.kr/main/index.do
+
+에필로그.1.
+우선 이렇게 정리해봤다. 더 필요한 정보가 있으면 작업전 요구 바랍니다.
+에필로그.2.
+새롭게 프로젝트에 맞춰서 정리되는 폴더는 ./figma_django 로 폴더를 만들고 아래 파일들을 구성해줄 것.
+
+프로젝트 구조에 대해서 설명하자면,
+PostgreSQL - RDB -> 공고 요약에 대한 메타데이터 저장한 DB
+PostgreSQL - VectorDB -> 각 공고가 갖는 첨부파일 pdf 에 대한 내용을 vectordb 형태로 임베딩해서 저장된 DB
+Docker 나중에 연결할 예정
+
+아래 환경설정에 관해서는 .env 에 있습니다.
+
+# R-DB
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=zf_admin
+DB_PASSWORD=zf_pwd1
+DB_NAME=zf_db
+
+## 도커 설치
+docker run -d `
+-e POSTGRES_USER=zf_admin `
+-e POSTGRES_PASSWORD=zf_pwd1 `
+-e POSTGRES_DB=zf_db `
+--name zf_db_container `
+-p 5432:5432 `
+pgvector/pgvector:pg17
+
+# 도커내의 데이터 접근
+docker exec -it zf_db_container psql -U zf_admin -d zf_db
+
+# 도커 확장 설치되었는지 확인하여 없으면 설치
+CREATE EXTENSION IF NOT EXISTS vector;
+
+# 프로젝트 환경 설정 -> 만들어야함.
+conda create -n zipfit_env python=3.12
+
+# 팀원이 공유해준 내용1
+# 뭔진 잘 모르겠는데, 같이 일하는 팀원이 준 코드 실행해야하는 것 같아 보임.
+conda install -c conda-forge camelot-py
+
+# 팀원이 공유해준 내용2.
+DJANGO_SECRET_KEY = django-insecure-0#z1rbplff)#c)84_zcg^5ex#p(j)ibh*g%%_dfpai(s9@^tf@
+
+# requirements.txt 의존성 설치할 것. 아래 내용 업데이트 해준뒤, 의존성 모두 설치할 것.
+pip install djangorestframework
+

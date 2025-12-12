@@ -76,7 +76,6 @@ class AnncAll(models.Model):
         verbose_name="공고 URL",
         unique=True
         ) # Django URLField 사용, TEXT 대체
-    
     created_at = models.DateTimeField(verbose_name="공고 생성 일자", auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name="공고 수정 일자", auto_now=True)
     corp_cd = models.CharField(max_length=10, verbose_name="공사 코드")

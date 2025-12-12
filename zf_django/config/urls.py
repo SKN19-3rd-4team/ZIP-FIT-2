@@ -20,6 +20,8 @@ from django.urls import path, include
 # 각 app으로 라우팅 기능만 한다.
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('web.urls')),      # web 앱의 URL
-    path('', include('chatbot.urls')),  # chatbot 앱의 URL (API 경로 포함)
+    # 웹 페이지 (랜딩 페이지 포함) - 먼저 매칭되도록 먼저 배치
+    path('', include('web.urls')),
+    # API 엔드포인트 - web.urls 이후에 매칭 (루트 경로가 아닌 API 경로만)
+    path('api/', include('chatbot.urls')),
 ]
