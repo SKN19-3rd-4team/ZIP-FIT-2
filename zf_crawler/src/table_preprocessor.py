@@ -294,3 +294,4 @@ class TablePreprocessor:
             }
             for i, rule in enumerate(self.rules)
         ]
+

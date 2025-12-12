@@ -2,9 +2,14 @@
 from django.urls import path
 from . import views
 
+app_name = 'web'
+
 urlpatterns = [
-    path('', views.home_view, name='home'),
-    path('web/', views.chat_view, name='chat'),
-    path('profile/', views.profile_view, name='profile'),
-    path('announcements/', views.announcements_view, name='announcements'),
+    path('', views.landing_view, name='landing'),
+    path('main/', views.main_view, name='main'),
+    path('user-info/', views.user_info_view, name='user_info'),
+    path('chat/', views.chat_view, name='chat'),
+    path('list/', views.list_view, name='list'),
+    # 기존 URL 유지 (하위 호환성)
+    path('chat-interface/', views.chat_interface, name='chat_interface'),
 ]

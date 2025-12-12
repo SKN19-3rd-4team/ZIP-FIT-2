@@ -34,8 +34,8 @@ def chat_histories(request):
         "message": "성공적으로 채팅 히스토리 목록을 조회했습니다.",
         "status": "success",
         "data": [
-            {"title": "수원 신혼부부 추천", "session_key": "session-001"},
-            {"title": "강남 임대 아파트", "session_key": "session-002"},
+            {"title": "수원 신혼부부 추천", "session_id": "session-001"},
+            {"title": "강남 임대 아파트", "session_id": "session-002"},
         ]
     }
     return Response(response_data)
@@ -60,7 +60,7 @@ def chat_history_detail(request, session_key):
         "status": "success",
         "data": {
             "title": "수원 신혼부부 추천 분양",
-            "session_key": session_key,
+            "session_id": session_key,  # URL 파라미터는 session_key지만 응답은 session_id로
             "user_key": request.GET.get('user_key', 'unknown'),
             "chat_list": [
                 {"id": 1, "sequence": 1, "message_type": "user", "message": "추천해줘"},
@@ -140,11 +140,21 @@ def annc_list(request):
 )
 @api_view(['GET'])
 def annc_summary(request):
+    from datetime import datetime, timedelta
+    
     # 실제 DB 집계 로직
     total = AnncAll.objects.count()
-    lease = AnncAll.objects.filter(annc_type="임대").count() # 예시
-    sale = AnncAll.objects.filter(annc_type="분양").count()   # 예시
+    lease = AnncAll.objects.filter(annc_type="임대").count()
+    sale = AnncAll.objects.filter(annc_type="분양").count()
     etc = total - (lease + sale)
+    
+    # 이번 주 신규 공고 계산
+    today = datetime.now().date()
+    week_ago = today - timedelta(days=7)
+    new_this_week = AnncAll.objects.filter(
+        created_at__gte=week_ago,
+        created_at__lt=today + timedelta(days=1)
+    ).count()
 
     response_data = {
         "message": "성공적으로 공고 요약 정보를 조회했습니다.",
@@ -153,7 +163,8 @@ def annc_summary(request):
             "cnt_total": total,
             "cnt_lease": lease,
             "cnt_sale": sale,
-            "cnt_etc": etc
+            "cnt_etc": etc if etc >= 0 else 0,
+            "cnt_new_this_week": new_this_week
         }
     }
     return Response(response_data)
