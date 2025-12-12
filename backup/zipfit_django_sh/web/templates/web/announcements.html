@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}공고 목록 | ZIPFIT{% endblock %}
+{% block nav_list %}bg-zip-light text-zip-primary3{% endblock %}
+
+{% block content %}
+
+<h2 class="text-2xl font-bold mb-6">공고 목록</h2>
+
+
+<!-- ============================================================= -->
+<!-- ▣ 커스텀 필터 바 (유형 / 지역 / 상태 / 검색) -->
+<!-- ============================================================= -->
+
+<form method="GET" id="filterForm" class="bg-white rounded-3xl p-6 shadow-soft mb-8">
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+        <!-- --------------------------------------------------------- -->
+        <!-- ▣ 1) 유형 드롭다운 (정적 버튼 나열) -->
+        <!-- --------------------------------------------------------- -->
+        <div class="relative">
+            <button type="button"
+                id="typeBtn"
+                class="w-full border rounded-xl px-4 py-3 bg-white text-sm flex justify-between items-center">
+                <span id="typeText">{{ request.GET.type|default:'전체 유형' }}</span>
+                ▼
+            </button>
+
+            <div id="typeMenu"
+                class="absolute hidden left-0 right-0 bg-white border rounded-xl shadow-lg mt-1 z-50 flex flex-col">
+
+                <button type="button" class="dropdown-item px-4 py-2 text-sm hover:bg-gray-100"
+                    data-value="">전체 유형</button>
+
+                <button type="button" class="dropdown-item px-4 py-2 text-sm hover:bg-gray-100"
+                    data-value="분양">분양</button>
+
+                <button type="button" class="dropdown-item px-4 py-2 text-sm hover:bg-gray-100"
+                    data-value="임대">임대</button>
+
+            </div>
+
+            <input type="hidden" name="type" id="typeInput" value="{{ request.GET.type }}">
+        </div>
+
+
+
+
+        <!-- --------------------------------------------------------- -->
+        <!-- ▣ 2) 지역 드롭다운 (정적 버튼 나열) -->
+        <!-- --------------------------------------------------------- -->
+        <div class="relative">
+            <button type="button"
+                id="regionBtn"
+                class="w-full border rounded-xl px-4 py-3 bg-white text-sm flex justify-between items-center">
+                <span id="regionText">{{ request.GET.region|default:'전체 지역' }}</span>
+                ▼
+            </button>
+
+            <div id="regionMenu"
+                class="absolute hidden left-0 right-0 bg-white border rounded-xl shadow-lg mt-1 z-50 max-h-60 overflow-y-auto flex flex-col">
+
+                <!-- 전체 -->
+                <button type="button" class="dropdown-item px-4 py-2 text-sm hover:bg-gray-100"
+                    data-value="">전체 지역</button>
+
+                <!-- 개별 지역 버튼 -->
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="강원특별자치도">강원특별자치도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="광주광역시">광주광역시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="대구광역시">대구광역시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="대전광역시">대전광역시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="부산광역시">부산광역시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="서울특별시">서울특별시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="세종특별자치시">세종특별자치시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="울산광역시">울산광역시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="인천광역시">인천광역시</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="전라남도">전라남도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="전북특별자치도">전북특별자치도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="제주특별자치도">제주특별자치도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="충청남도">충청남도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="충청북도">충청북도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="경기도">경기도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="경상남도">경상남도</button>
+                <button class="dropdown-item px-4 py-2 hover:bg-gray-100" data-value="경상북도">경상북도</button>
+
+            </div>
+
+            <input type="hidden" name="region" id="regionInput" value="{{ request.GET.region }}">
+        </div>
+
+
+
+
+        <!-- --------------------------------------------------------- -->
+        <!-- ▣ 3) 상태 드롭다운 (정적 버튼 나열) -->
+        <!-- --------------------------------------------------------- -->
+        <div class="relative">
+            <button type="button"
+                id="statusBtn"
+                class="w-full border rounded-xl px-4 py-3 bg-white text-sm flex justify-between items-center">
+                <span id="statusText">{{ request.GET.status|default:'전체 상태' }}</span>
+                ▼
+            </button>
+
+            <div id="statusMenu"
+                class="absolute hidden left-0 right-0 bg-white border rounded-xl shadow-lg mt-1 z-50 flex flex-col">
+
+                <button type="button" class="dropdown-item px-4 py-2 text-sm hover:bg-gray-100"
+                    data-value="">전체 상태</button>
+
+                <button type="button" class="dropdown-item px-4 py-2 hover:bg-gray-100"
+                    data-value="공고중">공고중</button>
+
+                <button type="button" class="dropdown-item px-4 py-2 hover:bg-gray-100"
+                    data-value="정정공고중">정정공고중</button>
+
+                <button type="button" class="dropdown-item px-4 py-2 hover:bg-gray-100"
+                    data-value="접수중">접수중</button>
+
+                <button type="button" class="dropdown-item px-4 py-2 hover:bg-gray-100"
+                    data-value="접수마감">접수마감</button>
+
+            </div>
+
+            <input type="hidden" name="status" id="statusInput" value="{{ request.GET.status }}">
+        </div>
+
+
+
+
+        <!-- --------------------------------------------------------- -->
+        <!-- ▣ 4) 검색창 -->
+        <!-- --------------------------------------------------------- -->
+        <div class="flex">
+            <input type="text" name="q"
+                value="{{ request.GET.q|default:'' }}"
+                placeholder="공고명 또는 키워드 검색"
+                class="flex-1 border rounded-l-xl px-4 py-3 text-sm focus:ring-zip-primary focus:border-zip-primary">
+
+            <button class="bg-zip-primary text-white px-6 rounded-r-xl hover:bg-zip-primary3 transition">
+                검색
+            </button>
+        </div>
+
+    </div>
+</form>
+
+
+<!-- ============================================================= -->
+<!-- ▣ 공고 카드 리스트 (3열) -->
+<!-- ============================================================= -->
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+    {% for item in page_obj %}
+    <div class="bg-white rounded-3xl p-6 shadow-soft hover:shadow-lg transition">
+
+        <!-- 상단 : 카테고리 + 즐겨찾기 -->
+        <div class="flex justify-between items-center">
+            <span class="text-xs px-3 py-1 rounded-full bg-zip-light text-zip-primary3">
+                {{ item.category }}
+            </span>
+
+            <!-- ⭐ 즐겨찾기 -->
+            <button
+                class="favorite-btn text-xl transition transform"
+                data-id="{{ item.id }}"
+                data-title="{{ item.title }}"
+                style="color: {% if item.id in favorite_ids %}#fbbf24{% else %}#d1d5db{% endif %};">
+                ⭐
+            </button>
+        </div>
+
+
+        <!-- 제목 -->
+        <div class="flex justify-between items-start mt-3">
+            <h3 class="text-lg font-bold">{{ item.title }}</h3>
+
+            <!-- 상태 배지(오른쪽 정렬) -->
+            <span class="text-xs px-2 py-1 rounded-full ml-3 whitespace-nowrap
+                {% if item.status == '공고중' %} bg-green-100 text-green-600
+                {% elif item.status == '정정공고중' %} bg-purple-100 text-purple-600
+                {% elif item.status == '접수중' %} bg-blue-100 text-blue-600
+                {% elif item.status == '접수마감' %} bg-gray-200 text-gray-500
+                {% endif %}
+            ">
+                {{ item.status }}
+            </span>
+        </div>
+
+
+        <!-- 날짜 + 지역 (institution 제거됨) -->
+        <p class="text-sm text-gray-500 mt-2">
+            📅 {{ item.date_range }} · 📍 {{ item.region }}
+        </p>
+
+        <!-- 요약 -->
+        <p class="text-sm text-gray-600 mt-3">{{ item.summary }}</p>
+
+        <a href="{{ item.detail_url }}"
+           class="inline-block mt-4 text-sm text-zip-primary3 font-semibold hover:underline">
+           자세히 보기 →
+        </a>
+    </div>
+    {% empty %}
+    <p class="text-gray-500 text-center py-10">검색 조건에 해당하는 공고가 없습니다.</p>
+    {% endfor %}
+
+</div>
+
+
+
+<!-- ============================================================= -->
+<!-- ▣ 페이지네이션 -->
+<!-- ============================================================= -->
+{% if total > 1 %}
+<div class="flex justify-center mt-12 gap-2 text-sm">
+
+    {% if current > 1 %}
+    <a href="?page=1" class="px-3 py-2 border rounded-lg hover:bg-gray-100">« 처음</a>
+    {% endif %}
+
+    {% if group_start > 1 %}
+    <a href="?page={{ group_start|add:'-1' }}" class="px-3 py-2 border rounded-lg hover:bg-gray-100">‹ 이전</a>
+    {% endif %}
+
+    {% for n in page_numbers %}
+    <a href="?page={{ n }}"
+       class="px-3 py-2 border rounded-lg {% if n == current %}bg-zip-primary text-white{% endif %}">
+        {{ n }}
+    </a>
+    {% endfor %}
+
+    {% if group_end < total %}
+    <a href="?page={{ group_end|add:'1' }}" class="px-3 py-2 border rounded-lg hover:bg-gray-100">다음 ›</a>
+    {% endif %}
+
+    {% if current < total %}
+    <a href="?page={{ total }}" class="px-3 py-2 border rounded-lg hover:bg-gray-100">끝 »</a>
+    {% endif %}
+
+</div>
+{% endif %}
+
+
+<!-- ============================================================= -->
+<!-- ▣ JS — 커스텀 드롭다운 + 즐겨찾기 기능 -->
+<!-- ============================================================= -->
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    /* -----------------------------
+       모든 커스텀 드롭다운 공통 제어
+    ----------------------------- */
+    function setupDropdown(btnId, menuId, textId, inputId) {
+
+        const btn = document.getElementById(btnId);
+        const menu = document.getElementById(menuId);
+        const text = document.getElementById(textId);
+        const input = document.getElementById(inputId);
+
+        // 드롭다운 열기/닫기
+        btn.addEventListener("click", () => {
+            menu.classList.toggle("hidden");
+        });
+
+        // 옵션 선택 시
+        menu.querySelectorAll(".dropdown-item").forEach(item => {
+            item.addEventListener("click", () => {
+                const raw = item.dataset.value;
+                const value = raw.includes("전체") ? "" : raw;
+                text.textContent = raw;
+                input.value = value;
+
+                menu.classList.add("hidden");
+
+                // 자동 submit
+                btn.closest("form").submit();
+            });
+        });
+
+        // 바깥 클릭 시 닫기
+        document.addEventListener("click", e => {
+            if (!btn.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.add("hidden");
+            }
+        });
+    }
+
+    setupDropdown("typeBtn", "typeMenu", "typeText", "typeInput");
+    setupDropdown("regionBtn", "regionMenu", "regionText", "regionInput");
+    setupDropdown("statusBtn", "statusMenu", "statusText", "statusInput");
+
+
+    /* -----------------------------
+       즐겨찾기 버튼
+    ----------------------------- */
+    document.querySelectorAll(".favorite-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+
+            const isActive = btn.style.color === "rgb(251, 191, 36)"; // yellow-400
+            const url = isActive ? "/web/favorite/remove/" : "/web/favorite/add/";
+
+            fetch(url, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({
+                    id: btn.dataset.id,
+                    title: btn.dataset.title
+                })
+            });
+
+            // ✨ toggle color
+            btn.style.color = isActive ? "#d1d5db" : "#fbbf24";
+
+            // scale animation
+            btn.classList.add("scale-125");
+            setTimeout(() => btn.classList.remove("scale-125"), 150);
+        });
+    });
+
+});
+</script>
+
+{% endblock %}
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,23 @@
+# Django Core
+Django==6.0
+djangorestframework==3.16.1
+drf-spectacular==0.27.2
+
+# Database
+psycopg2-binary==2.9.11
+pgvector==0.4.2
+
+# Environment Variables
+python-decouple==3.8
+
+# Utilities
+numpy==2.3.5
+asgiref==3.11.0
+sqlparse==0.5.4
+tzdata==2025.2
+setuptools==80.9.0
+wheel==0.45.1
+
+# HTTP Requests (API 호출용)
+requests==2.31.0
+
